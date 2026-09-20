@@ -18,6 +18,7 @@ import { Menu } from './ui/menu.js';
 import { DeathScreen } from './ui/deathScreen.js';
 import { DroneSelectMenu } from './ui/droneSelectMenu.js';
 import { TeamSelectMenu } from './ui/teamSelectMenu.js';
+import { setupNetworkHandlers } from './ui/disconnectHandler.js';
 import { placeMap } from './world/mapLoader.js';
 import { buildCollision } from './world/collisionLoader.js';
 import { CollisionWorld } from './world/collisionWorld.js';
@@ -161,13 +162,35 @@ function applyDronePreset(id) {
 
 bootstrap().catch((e) => console.error('BOOT FAIL', e));
 
-socket.on('open', () => {});
+const net = setupNetworkHandlers(socket, {
+  onKickReset: () => {
+    GameState.inGame = false;
+    GameState.mode = 'walk';
+    GameState.myTeam = null;
+    GameState.mySpawn = null;
+    if (GameState.localDrone) {
+      GameState.localDrone.piloted = false;
+      GameState.localDrone.physics.armed = false;
+      GameState.localDrone.physics.crashed = false;
+    }
+    if (GameState.audio) GameState.audio.stopDrone();
+    hud.hide();
+    setUIMode('walk', els);
+    menu.show();
+  },
+  onBan: () => {
+    GameState.inGame = false;
+    hud.hide();
+  },
+});
+
 socket.on('welcome', (msg) => {
   GameState.playerId = Number(msg.id) | 0;
   GameState.roomId = msg.roomId;
   stateManager.setMyId(GameState.playerId);
   if (GameState.localDrone) GameState.localDrone.droneId = localStorage.getItem('selectedDrone') || 'dron1';
 });
+
 socket.on('players', (msg) => stateManager.syncWithPlayerList(msg.list));
 socket.on('leave', (msg) => stateManager.removePlayer(msg.id));
 socket.on('binary', (type, payload) => stateManager.handleBinary(type, payload, GameState.allGltfs));
@@ -211,7 +234,6 @@ socket.on('team_reject', (msg) => {
 });
 
 socket.on('error', (msg) => {
-  console.error('[main] server error:', msg.reason);
   if (msg.reason === 'too_far_from_pad') {
     const gs = GameState;
     if (gs.mode === 'fpv') {
@@ -223,10 +245,7 @@ socket.on('error', (msg) => {
       gs.audio.stopDrone();
       els.touchCam.resetPitchOnRelease = false;
     }
-    return;
   }
-  menu.setStatus('Ошибка: ' + (msg.reason || 'unknown'));
-  menu.show();
 });
 
 socket.on('room_state', (msg) => {
@@ -311,9 +330,12 @@ const loop = new FixedLoop({
       const isDrone = gs.mode === 'fpv';
       if (isDrone) {
         if (!gs.audio.drone) gs.audio.playDrone();
+        gs.audio.playWind();
         gs.audio.updateDrone(d.rpm, gs.localDrone.params.MAX_RPM, d.getSpeed(), 0);
+        gs.audio.updateWind(d.getSpeed());
       } else {
         if (gs.audio.drone) gs.audio.stopDrone();
+        gs.audio.stopWind();
       }
     }
 
@@ -380,6 +402,18 @@ const loop = new FixedLoop({
         );
         camMgr.camera.quaternion.copy(q);
         camMgr.camera.rotateX(camMgr.camTilt);
+
+        const speed = gs.localDrone.physics.getSpeed();
+        const targetFov = 75 + Math.min(speed * 0.4, 25);
+        camMgr.camera.fov += (targetFov - camMgr.camera.fov) * Math.min(1, dt * 6);
+        camMgr.camera.updateProjectionMatrix();
+
+        const rpmNorm = gs.localDrone.physics.rpm / 26000;
+        const shakeAmp = 0.0035 * rpmNorm;
+        const t = performance.now() * 0.001;
+        camMgr.camera.rotateX(Math.sin(t * 31) * shakeAmp);
+        camMgr.camera.rotateY(Math.sin(t * 37) * shakeAmp);
+        camMgr.camera.rotateZ(Math.sin(t * 41) * shakeAmp * 0.5);
       }
 
       const isDrone = gs.mode === 'fpv';
@@ -410,6 +444,7 @@ window.addEventListener('beforeunload', () => {
   socket.disconnect();
   if (audio) {
     audio.stopDrone();
+    audio.stopWind();
     for (const id of [...audio.remoteDrones.keys()]) audio.removeRemoteDrone(id);
   }
 });

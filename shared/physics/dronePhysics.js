@@ -24,9 +24,12 @@ export class DronePhysics {
     this.rpm = 0;
     this.yaw = 0;
     this._pitchAngle = 0;
+    this._rollAngle = 0;
     this._smoothedThrottle = 0;
     this._smoothedYaw = 0;
     this._smoothedPitch = 0;
+    this._yawRate = 0;
+    this._noiseSeed = Math.random() * 1000;
   }
 
   setParams(params) {
@@ -46,9 +49,11 @@ export class DronePhysics {
     this.piloted = false;
     this.yaw = yaw;
     this._pitchAngle = 0;
+    this._rollAngle = 0;
     this._smoothedThrottle = 0;
     this._smoothedYaw = 0;
     this._smoothedPitch = 0;
+    this._yawRate = 0;
     this._setQuat();
 
     v3set(this.prevPosition, pos.x, pos.y, pos.z);
@@ -147,23 +152,75 @@ export class DronePhysics {
 
   _orientation(dt, yaw, pitch, active) {
     const p = this.params;
+
     const targetPitch = active ? pitch * degToRad(p.MAX_TILT_DEG || 60) : 0;
+    const targetRoll = active ? -yaw * degToRad(p.MAX_ROLL_DEG || 45) : 0;
+
     const k = 1 - Math.exp(-(p.PITCH_GAIN || 10) * dt);
     this._pitchAngle += (targetPitch - this._pitchAngle) * k;
-    if (active && Math.abs(yaw) > 0) {
-      this.yaw += degToRad(p.YAW_RATE_DEG || 220) * yaw * dt;
+    this._rollAngle += (targetRoll - this._rollAngle) * k;
+
+    if (active) {
+      const targetYawRate = degToRad(p.YAW_RATE_DEG || 220) * yaw;
+      const inertiaK = 1 - Math.exp(-(1 / Math.max(p.YAW_INERTIA || 0.12, 0.01)) * dt);
+      this._yawRate += (targetYawRate - this._yawRate) * inertiaK;
+      this.yaw += this._yawRate * dt;
+    } else {
+      this._yawRate *= Math.exp(-6 * dt);
     }
+
+    // турбулентность (мелкое дрожание)
+    const turb = p.TURBULENCE || 0;
+    if (active && turb > 0) {
+      const t = performance.now() * 0.001 + this._noiseSeed;
+      this._pitchAngle += Math.sin(t * 6.1) * turb * 0.5;
+      this._rollAngle += Math.sin(t * 5.3) * turb * 0.7;
+    }
+
     if (!isFinite(this.yaw)) this.yaw = 0;
     if (!isFinite(this._pitchAngle)) this._pitchAngle = 0;
+    if (!isFinite(this._rollAngle)) this._rollAngle = 0;
+
     this._setQuat();
   }
 
   _motor(dt, thr, active) {
     const p = this.params;
     const maxRpm = p.MAX_RPM || 26000;
-    const target = active ? thr * maxRpm : 0;
-    const tau = active ? (p.MOTOR_TAU || 0.035) : (p.MOTOR_TAU || 0.035) + (p.MOTOR_DECAY || 0.18);
+
+    let target = active ? thr * maxRpm : 0;
+
+    if (active) {
+      const t = performance.now() * 0.001 + this._noiseSeed;
+
+      // шум ±3% от target
+      const noise = (Math.sin(t * 17.3) + Math.sin(t * 23.7) * 0.7) * 0.015 * maxRpm;
+      target += noise;
+
+      // просадка при вертикальной скорости (набор высоты грузит моторы)
+      const vy = this.velocity.y;
+      const loadFactor = 1 - Math.min(Math.max(-vy * 0.005, -0.1), 0.15);
+      target *= loadFactor;
+
+      // просадка при yaw (резкий поворот грузит моторы)
+      const yawAbs = Math.abs(this._smoothedYaw);
+      const yawLoad = 1 - Math.min(yawAbs * 0.08, 0.1);
+      target *= yawLoad;
+
+      // буст при наклоне (эффективность винта падает под углом)
+      const tiltAbs = Math.abs(this._pitchAngle);
+      target *= 1 + tiltAbs * 0.15;
+
+      // ground effect (у земли винт отталкивается от земли — можно сбросить обороты)
+      const airHeight = this.position.y - (this.groundY + this.cfg.DRONE_RADIUS);
+      if (airHeight < 2.0 && airHeight > 0) {
+        target /= 1 + (1 - airHeight / 2.0) * 0.12;
+      }
+    }
+
+    const tau = active ? (p.MOTOR_TAU || 0.08) : (p.MOTOR_TAU || 0.08) + (p.MOTOR_DECAY || 0.25);
     const k = Math.min(dt / Math.max(tau, 1e-4), 1);
+
     this.rpm = clamp(this.rpm + (target - this.rpm) * k, 0, maxRpm);
     if (!isFinite(this.rpm)) this.rpm = 0;
   }
@@ -171,12 +228,18 @@ export class DronePhysics {
   _setQuat() {
     const pitch = this._pitchAngle;
     const yaw = this.yaw;
+    const roll = this._rollAngle;
+
     const cp = Math.cos(pitch * 0.5), sp = Math.sin(pitch * 0.5);
     const cy = Math.cos(yaw * 0.5), sy = Math.sin(yaw * 0.5);
-    this.quaternion.x = sp * cy;
-    this.quaternion.y = sy * cp;
-    this.quaternion.z = -sp * sy;
-    this.quaternion.w = cp * cy;
+    const cr = Math.cos(roll * 0.5), sr = Math.sin(roll * 0.5);
+
+    // порядок Y-X-Z (yaw → pitch → roll)
+    this.quaternion.x = sp * cy * cr + cp * sy * sr;
+    this.quaternion.y = sy * cp * cr - cy * sp * sr;
+    this.quaternion.z = cy * cp * sr - sy * sp * cr;
+    this.quaternion.w = cy * cp * cr + sy * sp * sr;
+
     q4normalize(this.quaternion, this.quaternion);
   }
 
@@ -200,6 +263,14 @@ export class DronePhysics {
     this.velocity.y += ay * dt;
     this.velocity.z += az * dt;
 
+    // турбулентный ветер (лёгкое смещение)
+    const turb = p.TURBULENCE || 0;
+    if (this.piloted && turb > 0) {
+      const t = performance.now() * 0.001 + this._noiseSeed;
+      this.velocity.x += Math.sin(t * 3.1) * turb * 0.3 * dt;
+      this.velocity.z += Math.sin(t * 4.7) * turb * 0.3 * dt;
+    }
+
     const spdSq = this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y + this.velocity.z * this.velocity.z;
     const maxS = p.MAX_SPEED_SOFT || 80;
     const maxSq = maxS * maxS;
@@ -218,7 +289,6 @@ export class DronePhysics {
     if (this.position.y < floorY) {
       const teleportUp = floorY - this.position.y;
       this.position.y = floorY;
-      const horizSpeed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
       if (this.velocity.y < 0) {
         const impact = -this.velocity.y;
         this.velocity.y = 0;
@@ -227,9 +297,6 @@ export class DronePhysics {
         if (impact > this.cfg.DRONE_CRASH_SPEED && teleportUp < 0.5) {
           this.crashed = true;
         }
-      }
-      if (horizSpeed > this.cfg.DRONE_CRASH_SPEED * 1.5 && teleportUp < 0.5) {
-        this.crashed = true;
       }
     }
 
