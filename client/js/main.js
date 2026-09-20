@@ -31,7 +31,7 @@ import {
   enterDrone, exitDrone, processCrash, posProbe, handleExplosionDamage
 } from './core/systems.js';
 
-const DEBUG = false;
+const DEBUG = true;
 
 initErrorOverlay();
 
