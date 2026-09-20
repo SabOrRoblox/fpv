@@ -5,6 +5,220 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Drone FPV</title>
   <link rel="stylesheet" href="./css/style.css" />
+
+  <script>
+    (function() {
+      var lines = [];
+      var visible = true;
+      var el = null;
+      var btn = null;
+
+      function ensureEl() {
+        if (el) return;
+        if (!document.body) { setTimeout(ensureEl, 10); return; }
+        el = document.createElement('div');
+        el.id = '__dbg_overlay';
+        el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);color:#0f0;font:11px/1.35 monospace;padding:8px;z-index:2147483647;white-space:pre-wrap;overflow:auto;pointer-events:auto;';
+        el.addEventListener('click', function(e) {
+          if (e.target === el) {
+            visible = false;
+            el.style.display = 'none';
+            if (btn) btn.style.display = 'block';
+          }
+        });
+        document.body.appendChild(el);
+
+        btn = document.createElement('button');
+        btn.textContent = 'DBG';
+        btn.style.cssText = 'position:fixed;bottom:20px;right:20px;width:60px;height:60px;border-radius:50%;background:#0f0;color:#000;font:bold 14px monospace;border:2px solid #000;z-index:2147483647;cursor:pointer;display:none;';
+        btn.addEventListener('click', function() {
+          visible = true;
+          el.style.display = 'block';
+          btn.style.display = 'none';
+        });
+        document.body.appendChild(btn);
+        render();
+      }
+
+      function render() {
+        if (!el) return;
+        el.textContent = lines.join('\n');
+        el.scrollTop = el.scrollHeight;
+      }
+
+      function log(tag, msg) {
+        var time = new Date().toISOString().slice(11, 23);
+        var line = '[' + time + '] [' + tag + '] ' + (msg === undefined ? '' : msg);
+        lines.push(line);
+        if (lines.length > 500) lines.shift();
+        if (visible && el) render();
+        try { console.log(line); } catch (e) {}
+      }
+
+      window.__dbg = {
+        log: log,
+        clear: function() { lines = []; render(); },
+        show: function() { visible = true; ensureEl(); if (el) el.style.display = 'block'; if (btn) btn.style.display = 'none'; },
+        hide: function() { visible = false; if (el) el.style.display = 'none'; if (btn) btn.style.display = 'block'; }
+      };
+
+      log('BOOT', 'HTML start');
+      log('BOOT', 'url=' + location.href);
+      log('BOOT', 'origin=' + location.origin);
+      log('BOOT', 'path=' + location.pathname);
+      log('BOOT', 'online=' + navigator.onLine);
+      log('BOOT', 'ua=' + navigator.userAgent.slice(0, 80));
+
+      window.addEventListener('error', function(e) {
+        if (e.target && e.target.tagName) {
+          var tag = e.target.tagName.toLowerCase();
+          if (tag === 'script' || tag === 'link' || tag === 'img') {
+            log('RES-FAIL', tag + ' ' + (e.target.src || e.target.href));
+            return;
+          }
+        }
+        var stack = e.error && e.error.stack ? e.error.stack : '';
+        log('ERROR', (e.message || '') + ' @ ' + (e.filename || '') + ':' + (e.lineno || 0) + ':' + (e.colno || 0));
+        if (stack) log('STACK', stack);
+      }, true);
+
+      window.addEventListener('unhandledrejection', function(e) {
+        var r = e.reason;
+        var msg = r && r.message ? r.message : String(r);
+        var stack = r && r.stack ? r.stack : '';
+        log('PROMISE', msg);
+        if (stack) log('STACK', stack);
+      });
+
+      var origErr = console.error;
+      console.error = function() {
+        var a = Array.prototype.slice.call(arguments);
+        log('CONSOLE.ERR', a.map(function(x) {
+          try { return typeof x === 'object' ? JSON.stringify(x).slice(0, 300) : String(x).slice(0, 300); } catch (e) { return String(x); }
+        }).join(' '));
+        origErr.apply(console, arguments);
+      };
+
+      var origWarn = console.warn;
+      console.warn = function() {
+        var a = Array.prototype.slice.call(arguments);
+        log('CONSOLE.WARN', a.map(function(x) {
+          try { return typeof x === 'object' ? JSON.stringify(x).slice(0, 300) : String(x).slice(0, 300); } catch (e) { return String(x); }
+        }).join(' '));
+        origWarn.apply(console, arguments);
+      };
+
+      document.addEventListener('DOMContentLoaded', function() {
+        log('DOM', 'DOMContentLoaded');
+        ensureEl();
+        runSelfTest();
+      });
+      window.addEventListener('load', function() {
+        log('LOAD', 'window load');
+      });
+
+      async function runSelfTest() {
+        log('TEST', '=== SELF TEST START ===');
+
+        // 1. Проверка HTML-элементов
+        var ids = [
+          'game-canvas', 'loading', 'loading-pct', 'loading-fill', 'loading-status',
+          'menu', 'player-count', 'player-max', 'nickname', 'btn-play', 'menu-status',
+          'hud', 'hud-hp-fill', 'hud-hp', 'hud-speed', 'hud-alt', 'hud-vsi',
+          'hud-bat', 'hud-ping', 'hud-rpm', 'hud-hint', 'speedo', 'tacho',
+          'joy-move', 'drone-cylinder', 'btn-drone-enter', 'btn-drone-exit',
+          'side-buttons', 'btn-drones', 'btn-cars', 'btn-pos',
+          'drone-select', 'drone-grid', 'team-select', 'team-red', 'team-blue',
+          'team-red-count', 'team-blue-count', 'team-status',
+          'death-screen', 'btn-respawn', 'error-overlay', 'error-text'
+        ];
+        var missing = [];
+        for (var i = 0; i < ids.length; i++) {
+          if (!document.getElementById(ids[i])) missing.push(ids[i]);
+        }
+        if (missing.length === 0) {
+          log('TEST-DOM', 'all ' + ids.length + ' ids present');
+        } else {
+          log('TEST-DOM', 'MISSING: ' + missing.join(', '));
+        }
+
+        // 2. Проверка импорта three
+        try {
+          var three = await import('three');
+          log('TEST-IMP', 'three OK, r' + three.REVISION);
+        } catch (e) {
+          log('TEST-IMP', 'three FAIL: ' + e.message);
+        }
+
+        // 3. Проверка bvh
+        try {
+          var bvh = await import('three-mesh-bvh');
+          log('TEST-IMP', 'three-mesh-bvh OK, ' + Object.keys(bvh).length + ' exports');
+        } catch (e) {
+          log('TEST-IMP', 'three-mesh-bvh FAIL: ' + e.message);
+        }
+
+        // 4. Проверка GLTFLoader
+        try {
+          var gl = await import('three/addons/loaders/GLTFLoader.js');
+          log('TEST-IMP', 'GLTFLoader OK, has class: ' + !!gl.GLTFLoader);
+        } catch (e) {
+          log('TEST-IMP', 'GLTFLoader FAIL: ' + e.message);
+        }
+
+        // 5. Проверка shared через два разных пути
+        try {
+          var c1 = await import('/shared/config/config.js');
+          log('TEST-IMP', '/shared/config/config.js OK, CFG keys: ' + Object.keys(c1.CFG || {}).length);
+        } catch (e) {
+          log('TEST-IMP', '/shared/config/config.js FAIL: ' + e.message);
+        }
+        try {
+          var c2 = await import('/client/shared/config/config.js');
+          log('TEST-IMP', '/client/shared/config/config.js OK, CFG keys: ' + Object.keys(c2.CFG || {}).length);
+        } catch (e) {
+          log('TEST-IMP', '/client/shared/config/config.js FAIL: ' + e.message);
+        }
+
+        // 6. Проверка shared через относительный путь (то, что делает main.js)
+        try {
+          var c3 = await import('../../shared/config/config.js');
+          log('TEST-IMP', '../../shared/config/config.js OK, CFG keys: ' + Object.keys(c3.CFG || {}).length);
+        } catch (e) {
+          log('TEST-IMP', '../../shared/config/config.js FAIL: ' + e.message);
+        }
+        try {
+          var c4 = await import('../shared/config/config.js');
+          log('TEST-IMP', '../shared/config/config.js OK, CFG keys: ' + Object.keys(c4.CFG || {}).length);
+        } catch (e) {
+          log('TEST-IMP', '../shared/config/config.js FAIL: ' + e.message);
+        }
+
+        // 7. Проверка главного файла клиента
+        try {
+          var main = await import('./js/main.js');
+          log('TEST-MAIN', 'main.js imported OK');
+        } catch (e) {
+          log('TEST-MAIN', 'main.js FAIL: ' + e.message);
+          if (e.stack) log('TEST-MAIN-STACK', e.stack.split('\n').slice(0, 5).join(' | '));
+        }
+
+        // 8. Проверка моделей (HEAD-запросы)
+        var models = ['map.glb', 'collision.glb', 'dron1.glb', 'dron2.glb', 'bro.glb'];
+        for (var m = 0; m < models.length; m++) {
+          try {
+            var r = await fetch('./assets/models/' + models[m], { method: 'HEAD' });
+            log('TEST-MODEL', models[m] + ' -> ' + r.status + ' ' + (r.headers.get('content-length') || '?') + 'b');
+          } catch (e) {
+            log('TEST-MODEL', models[m] + ' FAIL: ' + e.message);
+          }
+        }
+
+        log('TEST', '=== SELF TEST END ===');
+      }
+    })();
+  </script>
+
   <script type="importmap">
   {
     "imports": {
@@ -123,6 +337,20 @@
     <button id="btn-respawn">РЕСПАВН</button>
   </div>
 
+  <div id="error-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.9);color:#e86c6c;font-family:monospace;font-size:12px;padding:20px;z-index:9999;overflow:auto;display:none;">
+    <div id="error-text"></div>
+  </div>
+
+  <script>
+    (function() {
+      if (window.__dbg) window.__dbg.log('MODULE', 'before main.js script tag');
+    })();
+  </script>
   <script type="module" src="./js/main.js"></script>
+  <script>
+    (function() {
+      if (window.__dbg) window.__dbg.log('MODULE', 'after main.js script tag');
+    })();
+  </script>
 </body>
 </html>
