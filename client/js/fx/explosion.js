@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 
 const POOL_SIZE = 6;
-const FIRE_PARTICLES = 90;
-const SMOKE_PARTICLES = 40;
-const DEBRIS_PARTICLES = 30;
-const SHOCK_RINGS = 2;
 
 export class ExplosionFX {
   constructor(scene) {
@@ -12,10 +8,14 @@ export class ExplosionFX {
     this.pool = [];
 
     const sphereGeo = new THREE.SphereGeometry(1, 6, 6);
-    const debrisGeo = new THREE.BoxGeometry(0.25, 0.25, 0.25);
+    const debrisGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
     const ringGeo = new THREE.RingGeometry(0.6, 1.4, 32);
     const flashGeo = new THREE.SphereGeometry(1, 16, 16);
     const coreGeo = new THREE.SphereGeometry(1, 16, 16);
+
+    const MAX_FIRE = 160;
+    const MAX_SMOKE = 80;
+    const MAX_DEBRIS = 60;
 
     for (let i = 0; i < POOL_SIZE; i++) {
       const group = new THREE.Group();
@@ -40,23 +40,30 @@ export class ExplosionFX {
       }));
       group.add(flash);
 
-      const rings = [];
-      for (let r = 0; r < SHOCK_RINGS; r++) {
-        const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
-          color: r === 0 ? 0xffaa44 : 0xffcc88,
-          transparent: true,
-          opacity: 0.9,
-          depthWrite: false,
-          side: THREE.DoubleSide,
-          blending: THREE.AdditiveBlending,
-        }));
-        ring.rotation.x = -Math.PI / 2;
-        group.add(ring);
-        rings.push(ring);
-      }
+      const ring1 = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+        color: 0xffaa44,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      }));
+      ring1.rotation.x = -Math.PI / 2;
+      group.add(ring1);
+
+      const ring2 = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+        color: 0xffcc88,
+        transparent: true,
+        opacity: 0.7,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      }));
+      ring2.rotation.x = -Math.PI / 2;
+      group.add(ring2);
 
       const fire = [];
-      for (let j = 0; j < FIRE_PARTICLES; j++) {
+      for (let j = 0; j < MAX_FIRE; j++) {
         const mat = new THREE.MeshBasicMaterial({
           color: 0xff6600,
           transparent: true,
@@ -71,7 +78,7 @@ export class ExplosionFX {
       }
 
       const smoke = [];
-      for (let j = 0; j < SMOKE_PARTICLES; j++) {
+      for (let j = 0; j < MAX_SMOKE; j++) {
         const mat = new THREE.MeshBasicMaterial({
           color: 0x222222,
           transparent: true,
@@ -85,7 +92,7 @@ export class ExplosionFX {
       }
 
       const debris = [];
-      for (let j = 0; j < DEBRIS_PARTICLES; j++) {
+      for (let j = 0; j < MAX_DEBRIS; j++) {
         const mat = new THREE.MeshBasicMaterial({
           color: 0x553311,
           transparent: true,
@@ -100,24 +107,38 @@ export class ExplosionFX {
 
       this.scene.add(group);
       this.pool.push({
-        group, core, flash, rings, fire, smoke, debris,
-        active: false, elapsed: 0, duration: 3.0,
-        damageDealt: false, radius: 8, damage: 120, onDamage: null,
+        group, core, flash, ring1, ring2, fire, smoke, debris,
+        active: false, elapsed: 0, duration: 3.5,
+        damageDealt: false, opts: null, onDamage: null,
       });
     }
   }
 
-  trigger(position, radius = 8, damage = 120, onDamage = null) {
+  trigger(position, options, onDamage) {
+    const opts = Object.assign({
+      radius: 14,
+      damage: 250,
+      height: 28,
+      waveSpeed: 24,
+      duration: 3.5,
+      fireCount: 110,
+      smokeCount: 50,
+      debrisCount: 40,
+      coreColor: '#ffdd66',
+      fireColor: '#ff6600',
+      smokeColor: '#1a1a1a',
+      debrisColor: '#3d2817',
+    }, options || {});
+
     let exp = null;
     for (const e of this.pool) if (!e.active) { exp = e; break; }
     if (!exp) exp = this.pool[0];
 
     exp.active = true;
     exp.elapsed = 0;
-    exp.duration = 3.0;
+    exp.duration = opts.duration;
     exp.damageDealt = false;
-    exp.radius = radius;
-    exp.damage = damage;
+    exp.opts = opts;
     exp.onDamage = onDamage;
     exp.group.visible = true;
     exp.group.position.copy(position);
@@ -125,67 +146,95 @@ export class ExplosionFX {
     exp.core.visible = true;
     exp.core.scale.setScalar(0.3);
     exp.core.material.opacity = 1;
+    exp.core.material.color.set(opts.coreColor);
 
     exp.flash.visible = true;
     exp.flash.scale.setScalar(0.5);
     exp.flash.material.opacity = 1;
 
-    for (let r = 0; r < exp.rings.length; r++) {
-      const ring = exp.rings[r];
-      ring.visible = true;
-      ring.scale.setScalar(1 + r * 0.3);
-      ring.material.opacity = 0.9 - r * 0.2;
-      ring.rotation.z = Math.random() * Math.PI * 2;
-    }
+    exp.ring1.visible = true;
+    exp.ring1.scale.setScalar(1);
+    exp.ring1.material.opacity = 0.9;
+    exp.ring1.rotation.z = Math.random() * Math.PI * 2;
 
-    for (const p of exp.fire) {
+    exp.ring2.visible = true;
+    exp.ring2.scale.setScalar(1.3);
+    exp.ring2.material.opacity = 0.7;
+    exp.ring2.rotation.z = Math.random() * Math.PI * 2;
+
+    const fireRatio = Math.min(1, opts.fireCount / exp.fire.length);
+    const smokeRatio = Math.min(1, opts.smokeCount / exp.smoke.length);
+    const debrisRatio = Math.min(1, opts.debrisCount / exp.debris.length);
+
+    const fireColorBase = new THREE.Color(opts.fireColor);
+
+    for (let i = 0; i < exp.fire.length; i++) {
+      const p = exp.fire[i];
+      if (i / exp.fire.length > fireRatio) { p.mesh.visible = false; continue; }
       p.mesh.visible = true;
       p.mesh.position.set(0, 0, 0);
+
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const speed = 6 + Math.random() * 22;
+      const speed = 6 + Math.random() * 18;
+      const upBias = 1.2 + (opts.height / 20);
+
       p.vx = Math.sin(phi) * Math.cos(theta) * speed;
-      p.vy = Math.abs(Math.cos(phi)) * speed * 1.4 + 4;
+      p.vy = Math.abs(Math.cos(phi)) * speed * upBias + 6;
       p.vz = Math.sin(phi) * Math.sin(theta) * speed;
       p.life = 0;
-      p.maxLife = 0.9 + Math.random() * 1.4;
-      p.size = 0.3 + Math.random() * 0.9;
+      p.maxLife = 0.9 + Math.random() * 1.6;
+      p.size = 0.3 + Math.random() * 1.0;
       p.mesh.scale.setScalar(p.size);
       p.mesh.material.opacity = 1;
-      p.mesh.material.color.setHSL(0.02 + Math.random() * 0.10, 1, 0.55 + Math.random() * 0.15);
+      p.mesh.material.color.copy(fireColorBase);
+      p.mesh.material.color.offsetHSL((Math.random() - 0.5) * 0.05, 0, 0.1 * Math.random());
     }
 
-    for (const p of exp.smoke) {
+    const smokeColorBase = new THREE.Color(opts.smokeColor);
+
+    for (let i = 0; i < exp.smoke.length; i++) {
+      const p = exp.smoke[i];
+      if (i / exp.smoke.length > smokeRatio) { p.mesh.visible = false; continue; }
       p.mesh.visible = true;
       p.mesh.position.set(0, 0, 0);
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const speed = 2 + Math.random() * 8;
+      const speed = 2 + Math.random() * 7;
+      const upBias = 2.5 + (opts.height / 12);
+
       p.vx = Math.sin(phi) * Math.cos(theta) * speed;
-      p.vy = 3 + Math.random() * 8;
+      p.vy = 4 + Math.random() * 6 + upBias;
       p.vz = Math.sin(phi) * Math.sin(theta) * speed;
       p.life = 0;
-      p.maxLife = 1.2 + Math.random() * 1.8;
-      p.size = 1.2 + Math.random() * 2.2;
+      p.maxLife = 1.5 + Math.random() * 2.2;
+      p.size = 1.4 + Math.random() * 2.6;
       p.mesh.scale.setScalar(p.size);
-      p.mesh.material.opacity = 0.55;
-      p.mesh.material.color.setHSL(0, 0, 0.05 + Math.random() * 0.15);
+      p.mesh.material.opacity = 0.6;
+      p.mesh.material.color.copy(smokeColorBase);
     }
 
-    for (const p of exp.debris) {
+    const debrisColorBase = new THREE.Color(opts.debrisColor);
+
+    for (let i = 0; i < exp.debris.length; i++) {
+      const p = exp.debris[i];
+      if (i / exp.debris.length > debrisRatio) { p.mesh.visible = false; continue; }
       p.mesh.visible = true;
       p.mesh.position.set(0, 0, 0);
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const speed = 10 + Math.random() * 25;
+      const speed = 10 + Math.random() * 22;
+      const upBias = 1.4 + (opts.height / 25);
+
       p.vx = Math.sin(phi) * Math.cos(theta) * speed;
-      p.vy = 8 + Math.random() * 20;
+      p.vy = 8 + Math.random() * 18 * upBias;
       p.vz = Math.sin(phi) * Math.sin(theta) * speed;
       p.life = 0;
-      p.maxLife = 1.5 + Math.random() * 1.5;
-      p.spin = (Math.random() - 0.5) * 20;
-      p.mesh.scale.setScalar(0.5 + Math.random() * 1.2);
+      p.maxLife = 1.8 + Math.random() * 1.5;
+      p.spin = (Math.random() - 0.5) * 22;
+      p.mesh.scale.setScalar(0.5 + Math.random() * 1.3);
       p.mesh.material.opacity = 1;
+      p.mesh.material.color.copy(debrisColorBase);
       p.mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
     }
   }
@@ -196,7 +245,7 @@ export class ExplosionFX {
 
       if (!exp.damageDealt) {
         exp.damageDealt = true;
-        if (exp.onDamage) exp.onDamage(exp.group.position, exp.radius, exp.damage);
+        if (exp.onDamage && exp.opts) exp.onDamage(exp.group.position, exp.opts.radius, exp.opts.damage);
       }
 
       exp.elapsed += dt;
@@ -209,26 +258,30 @@ export class ExplosionFX {
       }
 
       const early = Math.min(1, exp.elapsed / 0.25);
+      const heightScale = (exp.opts.height || 28) / 20;
 
-      exp.core.scale.setScalar(0.3 + early * 4.5 - t * 3);
+      exp.core.scale.setScalar((0.3 + early * 4.5 - t * 3) * (0.7 + heightScale * 0.5));
       exp.core.material.opacity = Math.max(0, 1 - t * 1.6);
 
-      exp.flash.scale.setScalar(0.5 + early * 8);
+      exp.flash.scale.setScalar((0.5 + early * 8) * (0.8 + heightScale * 0.4));
       exp.flash.material.opacity = Math.max(0, 1 - early * 1.8);
 
-      for (let r = 0; r < exp.rings.length; r++) {
-        const ring = exp.rings[r];
-        const rt = Math.min(1, exp.elapsed / (1.0 + r * 0.4));
-        ring.scale.setScalar(1 + rt * (14 + r * 4));
-        ring.material.opacity = Math.max(0, (0.9 - r * 0.2) - rt * 1.1);
-      }
+      const waveSpeed = (exp.opts.waveSpeed || 24) / 24;
+
+      const rt1 = Math.min(1, exp.elapsed / 1.0);
+      exp.ring1.scale.setScalar(1 + rt1 * 14 * waveSpeed);
+      exp.ring1.material.opacity = Math.max(0, 0.9 - rt1 * 1.1);
+
+      const rt2 = Math.min(1, exp.elapsed / 1.4);
+      exp.ring2.scale.setScalar(1.3 + rt2 * 18 * waveSpeed);
+      exp.ring2.material.opacity = Math.max(0, 0.7 - rt2 * 0.9);
 
       for (const p of exp.fire) {
         if (!p.mesh.visible) continue;
         p.life += dt;
         const pt = p.life / p.maxLife;
         if (pt >= 1) { p.mesh.visible = false; continue; }
-        p.vy -= 14 * dt;
+        p.vy -= 12 * dt;
         p.vx *= 1 - 1.8 * dt;
         p.vz *= 1 - 1.8 * dt;
         p.mesh.position.x += p.vx * dt;
@@ -236,7 +289,8 @@ export class ExplosionFX {
         p.mesh.position.z += p.vz * dt;
         p.mesh.material.opacity = 1 - pt * pt;
         p.mesh.scale.setScalar(p.size * (1 + pt * 2.5));
-        p.mesh.material.color.setHSL(0.02 + pt * 0.06, 1, 0.55 - pt * 0.55);
+        const h = 0.02 + pt * 0.06;
+        p.mesh.material.color.setHSL(h, 1, 0.55 - pt * 0.55);
       }
 
       for (const p of exp.smoke) {
@@ -244,15 +298,14 @@ export class ExplosionFX {
         p.life += dt;
         const pt = p.life / p.maxLife;
         if (pt >= 1) { p.mesh.visible = false; continue; }
-        p.vy -= 2 * dt;
-        p.vx *= 1 - 0.6 * dt;
-        p.vz *= 1 - 0.6 * dt;
+        p.vy -= 1.5 * dt;
+        p.vx *= 1 - 0.5 * dt;
+        p.vz *= 1 - 0.5 * dt;
         p.mesh.position.x += p.vx * dt;
         p.mesh.position.y += p.vy * dt;
         p.mesh.position.z += p.vz * dt;
-        p.mesh.material.opacity = 0.55 * (1 - pt);
-        p.mesh.scale.setScalar(p.size * (1 + pt * 3));
-        p.mesh.material.color.setHSL(0, 0, 0.05 + (1 - pt) * 0.15);
+        p.mesh.material.opacity = 0.6 * (1 - pt);
+        p.mesh.scale.setScalar(p.size * (1 + pt * 3.5));
       }
 
       for (const p of exp.debris) {

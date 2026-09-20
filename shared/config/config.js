@@ -41,8 +41,15 @@ export const CFG = {
   DRONE_EXPLOSION_DAMAGE: 250,
 
   PAD_RADIUS: 2.5,
+
   PLAYER_SPAWN: { x: -371.5, z: 380.8 },
+  PLAYER_SPAWN_2: { x: 365.9, z: -361.6 },
+
+  TEAM_SPAWN_RED: { x: -371.5, z: 380.8 },
+  TEAM_SPAWN_BLUE: { x: 365.9, z: -361.6 },
+
   DRONE_PAD_POS: { x: -367.0, z: 380.8 },
+  DRONE_PAD_POS_BLUE: { x: 361.0, z: -361.6 },
   DRONE_SPAWN_AHEAD: 8.0,
 
   DEFAULT_DRONE_PARAMS: {
@@ -59,5 +66,10 @@ export const CFG = {
     INPUT_SMOOTH: 16.0,
     STICK_DEADZONE: 0.08,
     STICK_EXPO: 0.30,
+
+    BATTERY_CAPACITY: 100,
+    BATTERY_DRAIN_IDLE: 0.15,
+    BATTERY_DRAIN_HOVER: 0.5,
+    BATTERY_DRAIN_FULL: 2.0,
   },
 };

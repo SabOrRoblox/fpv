@@ -35,10 +35,17 @@ export function setUIMode(mode, els) {
   gs.mode = mode;
 }
 
-export function respawnAll(els) {
+export function respawnAll(els, spawnOverride) {
   const gs = GameState;
-  gs.localPlayer.spawn(gs.collisionWorld, CFG.PLAYER_SPAWN.x, CFG.PLAYER_SPAWN.z, 0);
-  gs.localDrone.resetToPos(gs.collisionWorld, { x: CFG.DRONE_PAD_POS.x, y: 0, z: CFG.DRONE_PAD_POS.z }, 0);
+  const spawn = spawnOverride || (gs.myTeam === 'blue' ? CFG.TEAM_SPAWN_BLUE : CFG.TEAM_SPAWN_RED);
+
+  gs.lastPlayerPos = null;
+  gs.localPlayer.spawn(gs.collisionWorld, spawn.x, spawn.z, 0);
+
+  const padX = gs.myTeam === 'blue' ? CFG.DRONE_PAD_POS_BLUE.x : CFG.DRONE_PAD_POS.x;
+  const padZ = gs.myTeam === 'blue' ? CFG.DRONE_PAD_POS_BLUE.z : CFG.DRONE_PAD_POS.z;
+  gs.localDrone.resetToPos(gs.collisionWorld, { x: padX, y: 0, z: padZ }, 0);
+
   gs.lastCrashProcessed = false;
   gs.camYaw = 0;
   els.touchCam.yaw = 0;
@@ -56,8 +63,14 @@ export function enterDrone(els) {
   const gs = GameState;
   if (gs.mode !== 'walk') return;
   if (!gs.localPlayer.alive) return;
-
   if (distToPad() > CFG.PAD_RADIUS + 2.0) return;
+
+  gs.lastPlayerPos = {
+    x: gs.localPlayer.position.x,
+    y: gs.localPlayer.position.y,
+    z: gs.localPlayer.position.z,
+    yaw: gs.localPlayer.yaw,
+  };
 
   if (gs.collisionWorld && gs.collisionWorld.isReady()) {
     const gY = gs.collisionWorld.raycastDown(
@@ -87,6 +100,8 @@ export function enterDrone(els) {
       droneId: gs.localDrone.droneId || 'dron1',
       dx: gs.localDrone.position.x,
       dz: gs.localDrone.position.z,
+      px: gs.localPlayer.position.x,
+      pz: gs.localPlayer.position.z,
     });
   }
 
@@ -109,18 +124,28 @@ export function exitDrone(els) {
   const droneZ = gs.localDrone.position.z;
   const droneY = gs.localDrone.position.y;
 
-  let spawnX = droneX + 2.0;
-  let spawnZ = droneZ;
+  let spawnX, spawnZ;
 
-  if (!isFinite(spawnX) || !isFinite(spawnZ) || !isFinite(droneY)) {
-    spawnX = CFG.PLAYER_SPAWN.x;
-    spawnZ = CFG.PLAYER_SPAWN.z;
-  } else if (gs.collisionWorld && gs.collisionWorld.isReady()) {
-    const gY = gs.collisionWorld.raycastDown(spawnX, spawnZ, 10000, -10000);
-    if (gY === null || droneY > gY + 50) {
-      spawnX = CFG.PLAYER_SPAWN.x;
-      spawnZ = CFG.PLAYER_SPAWN.z;
+  if (gs.collisionWorld && gs.collisionWorld.isReady()) {
+    const gY = gs.collisionWorld.raycastDown(droneX, droneZ, 10000, -10000);
+    const isHighAir = gY !== null && droneY > gY + 3.0;
+
+    if (isHighAir) {
+      if (gs.lastPlayerPos) {
+        spawnX = gs.lastPlayerPos.x;
+        spawnZ = gs.lastPlayerPos.z;
+      } else {
+        const spawn = gs.myTeam === 'blue' ? CFG.TEAM_SPAWN_BLUE : CFG.TEAM_SPAWN_RED;
+        spawnX = spawn.x;
+        spawnZ = spawn.z;
+      }
+    } else {
+      spawnX = droneX + 2.0;
+      spawnZ = droneZ;
     }
+  } else {
+    spawnX = droneX + 2.0;
+    spawnZ = droneZ;
   }
 
   gs.localPlayer.spawn(gs.collisionWorld, spawnX, spawnZ, 0);
@@ -166,8 +191,24 @@ export function processCrash(els) {
   );
   if (!isFinite(pos.x) || !isFinite(pos.y) || !isFinite(pos.z)) pos.set(0, 5, 0);
 
-  gs.audio.playExplosion();
-  gs.explosionFX.trigger(pos, CFG.DRONE_EXPLOSION_RADIUS, CFG.DRONE_EXPLOSION_DAMAGE,
+  const p = gs.localDrone.params || {};
+  const explosionOpts = {
+    radius: p.EXPLOSION_RADIUS || CFG.DRONE_EXPLOSION_RADIUS,
+    damage: p.EXPLOSION_DAMAGE || CFG.DRONE_EXPLOSION_DAMAGE,
+    height: p.EXPLOSION_HEIGHT || 28,
+    waveSpeed: p.EXPLOSION_WAVE_SPEED || 24,
+    duration: p.EXPLOSION_DURATION || 3.5,
+    fireCount: p.EXPLOSION_FIRE_COUNT || 110,
+    smokeCount: p.EXPLOSION_SMOKE_COUNT || 50,
+    debrisCount: p.EXPLOSION_DEBRIS_COUNT || 40,
+    coreColor: p.EXPLOSION_CORE_COLOR || '#ffdd66',
+    fireColor: p.EXPLOSION_FIRE_COLOR || '#ff6600',
+    smokeColor: p.EXPLOSION_SMOKE_COLOR || '#1a1a1a',
+    debrisColor: p.EXPLOSION_DEBRIS_COLOR || '#3d2817',
+  };
+
+  gs.audio.playExplosion(pos);
+  gs.explosionFX.trigger(pos, explosionOpts,
     (c, r, d) => handleExplosionDamage(c, r, d, els));
 
   if (gs.socket && gs.socket.connected && gs.playerId) {
@@ -185,7 +226,9 @@ export function processCrash(els) {
 
   if (gs.socket && gs.socket.connected) gs.socket.sendJSON({ type: 'exit_drone' });
 
-  gs.localDrone.resetToPos(gs.collisionWorld, { x: CFG.DRONE_PAD_POS.x, y: 0, z: CFG.DRONE_PAD_POS.z }, 0);
+  const padX = gs.myTeam === 'blue' ? CFG.DRONE_PAD_POS_BLUE.x : CFG.DRONE_PAD_POS.x;
+  const padZ = gs.myTeam === 'blue' ? CFG.DRONE_PAD_POS_BLUE.z : CFG.DRONE_PAD_POS.z;
+  gs.localDrone.resetToPos(gs.collisionWorld, { x: padX, y: 0, z: padZ }, 0);
 
   if (gs.socket && gs.socket.connected) {
     gs.socket.sendJSON({
@@ -194,6 +237,13 @@ export function processCrash(els) {
       y: gs.localDrone.position.y,
       z: gs.localDrone.position.z,
     });
+  }
+
+  const spawn = gs.myTeam === 'blue' ? CFG.TEAM_SPAWN_BLUE : CFG.TEAM_SPAWN_RED;
+  if (gs.lastPlayerPos) {
+    gs.localPlayer.spawn(gs.collisionWorld, gs.lastPlayerPos.x, gs.lastPlayerPos.z, 0);
+  } else {
+    gs.localPlayer.spawn(gs.collisionWorld, spawn.x, spawn.z, 0);
   }
 }
 

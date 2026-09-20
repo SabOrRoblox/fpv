@@ -3,6 +3,8 @@ export class Room {
     this.id = id;
     this.maxPlayers = maxPlayers;
     this.players = new Map();
+    this.spawnRed = { x: -371.5, z: 380.8 };
+    this.spawnBlue = { x: 365.9, z: -361.6 };
   }
 
   isFull() { return this.players.size >= this.maxPlayers; }
@@ -17,6 +19,19 @@ export class Room {
 
   remove(id) { this.players.delete(id); }
   count() { return this.players.size; }
+
+  teamCounts() {
+    let red = 0, blue = 0;
+    for (const p of this.players.values()) {
+      if (p.team === 'red') red++;
+      else if (p.team === 'blue') blue++;
+    }
+    return { red, blue };
+  }
+
+  teamsState() {
+    return this.teamCounts();
+  }
 
   broadcastJSON(obj, exceptId = null) {
     const data = JSON.stringify(obj);
@@ -40,7 +55,7 @@ export class Room {
       max: this.maxPlayers,
       roomId: this.id,
       list: [...this.players.values()].map(p => ({
-        id: p.id, name: p.name, mode: p.mode, hp: p.hp, alive: p.alive,
+        id: p.id, name: p.name, mode: p.mode, hp: p.hp, alive: p.alive, team: p.team,
       })),
     };
   }

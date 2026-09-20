@@ -1,11 +1,17 @@
+import { playExplosion } from '../../assets/sounds/explosion.js';
+import { createLocalDrone } from '../../assets/sounds/drone_local.js';
+import { createRemoteDrone } from '../../assets/sounds/drone_remote.js';
+import { playBatteryBeep } from '../../assets/sounds/battery_beep.js';
+
 export class AudioManager {
   constructor() {
     this.ctx = null;
     this.enabled = false;
     this.masterGain = null;
-    this.droneNodes = null;
-    this._volume = 0.6;
     this.listener = null;
+
+    this.drone = null;
+    this.remoteDrones = new Map();
   }
 
   init() {
@@ -13,9 +19,11 @@ export class AudioManager {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
     this.ctx = new Ctx();
+
     this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.value = this._volume;
+    this.masterGain.gain.value = 0.55;
     this.masterGain.connect(this.ctx.destination);
+
     this.enabled = true;
   }
 
@@ -23,111 +31,80 @@ export class AudioManager {
     this.listener = camera || null;
   }
 
+  updateListener() {
+    if (!this.listener || !this.ctx) return;
+    const l = this.ctx.listener;
+    const c = this.listener;
+    const e = c.matrixWorld.elements;
+    const fx = -e[8], fy = -e[9], fz = -e[10];
+    const ux = e[4], uy = e[5], uz = e[6];
+    try {
+      if (l.positionX) {
+        l.positionX.value = c.position.x;
+        l.positionY.value = c.position.y;
+        l.positionZ.value = c.position.z;
+        l.forwardX.value = fx;
+        l.forwardY.value = fy;
+        l.forwardZ.value = fz;
+        l.upX.value = ux;
+        l.upY.value = uy;
+        l.upZ.value = uz;
+      } else if (l.setPosition) {
+        l.setPosition(c.position.x, c.position.y, c.position.z);
+        l.setOrientation(fx, fy, fz, ux, uy, uz);
+      }
+    } catch {}
+  }
+
   resume() {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   }
 
-  playExplosion() {
+  playExplosion(worldPos) {
     if (!this.enabled || !this.ctx) return;
-    const ctx = this.ctx;
-    const now = ctx.currentTime;
+    playExplosion(this.ctx, this.masterGain, worldPos);
+  }
 
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(120, now);
-    osc.frequency.exponentialRampToValueAtTime(30, now + 1.5);
-
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.8, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
-
-    osc.connect(gain);
-    gain.connect(this.masterGain);
-    osc.start(now);
-    osc.stop(now + 2.0);
-
-    const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 2.0, ctx.sampleRate);
-    const data = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-
-    const noise = ctx.createBufferSource();
-    noise.buffer = noiseBuffer;
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(3000, now);
-    filter.frequency.exponentialRampToValueAtTime(200, now + 1.5);
-
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.7, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
-
-    noise.connect(filter);
-    filter.connect(noiseGain);
-    noiseGain.connect(this.masterGain);
-    noise.start(now);
-    noise.stop(now + 2.0);
+  playBeep(urgent) {
+    if (!this.enabled || !this.ctx) return;
+    playBatteryBeep(this.ctx, this.masterGain, urgent);
   }
 
   playDrone() {
-    if (!this.enabled) return;
-    if (this.droneNodes) return;
-    const ctx = this.ctx;
-
-    const osc1 = ctx.createOscillator();
-    osc1.type = 'sawtooth';
-    osc1.frequency.value = 80;
-
-    const osc2 = ctx.createOscillator();
-    osc2.type = 'square';
-    osc2.frequency.value = 160;
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 1200;
-    filter.Q.value = 4;
-
-    const gain1 = ctx.createGain();
-    gain1.gain.value = 0.08;
-    const gain2 = ctx.createGain();
-    gain2.gain.value = 0.03;
-
-    osc1.connect(gain1);
-    osc2.connect(gain2);
-    gain1.connect(filter);
-    gain2.connect(filter);
-    filter.connect(this.masterGain);
-
-    osc1.start();
-    osc2.start();
-
-    this.droneNodes = { osc1, osc2, filter, gain1, gain2, baseF1: 80, baseF2: 160 };
+    if (!this.enabled || !this.ctx) return;
+    if (this.drone) return;
+    this.drone = createLocalDrone(this.ctx, this.masterGain);
   }
 
   stopDrone() {
-    if (!this.droneNodes) return;
-    const { osc1, osc2 } = this.droneNodes;
-    try { osc1.stop(); } catch {}
-    try { osc2.stop(); } catch {}
-    this.droneNodes = null;
+    if (!this.drone) return;
+    this.drone.stop();
+    this.drone = null;
   }
 
-  setDroneRPM(rpm, maxRpm) {
-    if (!this.droneNodes || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    if (!isFinite(now) || now < 0) return;
+  updateDrone(rpm, maxRpm, speed, throttle) {
+    if (!this.drone) return;
+    this.drone.update(rpm, maxRpm, speed, throttle);
+  }
 
-    const t = Math.max(0, Math.min(1, rpm / maxRpm));
-    const f1 = this.droneNodes.baseF1 * (1 + t * 4.5);
-    const f2 = this.droneNodes.baseF2 * (1 + t * 4.5);
-    const ramp = 0.08;
+  ensureRemoteDrone(id) {
+    if (!this.enabled || !this.ctx) return null;
+    if (this.remoteDrones.has(id)) return this.remoteDrones.get(id);
+    const node = createRemoteDrone(this.ctx, this.masterGain);
+    this.remoteDrones.set(id, node);
+    return node;
+  }
 
-    try {
-      this.droneNodes.osc1.frequency.linearRampToValueAtTime(f1, now + ramp);
-      this.droneNodes.osc2.frequency.linearRampToValueAtTime(f2, now + ramp);
-      this.droneNodes.filter.frequency.linearRampToValueAtTime(800 + t * 2200, now + ramp);
-      this.droneNodes.gain1.gain.linearRampToValueAtTime(0.05 + t * 0.12, now + ramp);
-      this.droneNodes.gain2.gain.linearRampToValueAtTime(0.02 + t * 0.05, now + ramp);
-    } catch {}
+  updateRemoteDrone(id, rpm, maxRpm, pos) {
+    const node = this.ensureRemoteDrone(id);
+    if (!node) return;
+    node.update(rpm, maxRpm, pos);
+  }
+
+  removeRemoteDrone(id) {
+    const node = this.remoteDrones.get(id);
+    if (!node) return;
+    node.stop();
+    this.remoteDrones.delete(id);
   }
 }

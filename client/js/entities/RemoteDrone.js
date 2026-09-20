@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { CFG } from '../../../shared/config/config.js';
+import { PropellerAnimator } from '../render/propellerAnimator.js';
 
 export class RemoteDrone {
   constructor(id, scene, gltf) {
     this.id = id;
     this.scene = scene;
     this.group = new THREE.Group();
+    this.props = null;
+    this.rpm = 0;
 
     if (gltf && gltf.scene) {
       const model = gltf.scene.clone(true);
@@ -19,6 +22,7 @@ export class RemoteDrone {
       box.getCenter(center);
       model.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
       this.group.add(model);
+      this.props = new PropellerAnimator(model);
     } else {
       const fb = new THREE.Mesh(
         new THREE.BoxGeometry(1.6, 0.4, 1.6),
@@ -36,16 +40,25 @@ export class RemoteDrone {
 
   pushState(d) {
     const t = performance.now() / 1000;
-    this.buffer.push({ t, x: d.x, y: d.y, z: d.z, qx: d.qx, qy: d.qy, qz: d.qz, qw: d.qw });
+    this.buffer.push({
+      t,
+      x: d.x, y: d.y, z: d.z,
+      qx: d.qx, qy: d.qy, qz: d.qz, qw: d.qw,
+      rpm: d.rpm || 0,
+    });
     if (this.buffer.length > 40) this.buffer.shift();
     this.hasData = true;
+    this.rpm = d.rpm || 0;
   }
 
   update(dt, nowSec) {
+    if (this.props) this.props.update(dt, this.rpm);
+
     if (!this.hasData || this.buffer.length === 0) return;
+
     const renderTime = nowSec - CFG.INTERP_DELAY;
     const buf = this.buffer;
-    while (buf.length > 2 && buf[0].t < nowSec - 1.0) buf.shift();
+    while (buf.length > 2 && buf[0].t < nowSec - 0.5) buf.shift();
 
     if (buf.length === 1) {
       const s = buf[0];
@@ -71,10 +84,12 @@ export class RemoteDrone {
         const prev = buf[Math.max(0, buf.length - 2)];
         const span = Math.max(last.t - prev.t, 1e-4);
         const extra = Math.min(nowSec - last.t, CFG.EXTRAP_MAX);
-        const vx = (last.x - prev.x) / span;
-        const vy = (last.y - prev.y) / span;
-        const vz = (last.z - prev.z) / span;
-        this.renderPos.set(last.x + vx * extra, last.y + vy * extra, last.z + vz * extra);
+        const k = extra / span;
+        this.renderPos.set(
+          last.x + (last.x - prev.x) * k,
+          last.y + (last.y - prev.y) * k,
+          last.z + (last.z - prev.z) * k
+        );
         this.renderQuat.set(last.qx, last.qy, last.qz, last.qw);
       }
       this._apply();

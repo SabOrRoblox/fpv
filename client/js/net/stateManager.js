@@ -1,3 +1,4 @@
+
 import {
   MSG, parseSnapshot, decodeEventCrash,
 } from '../../../shared/net/protocol.js';
@@ -29,7 +30,7 @@ export class StateManager {
         seenPlayers.add(p.id);
         let rp = this.remotePlayers.get(p.id);
         if (!rp) {
-          const gltf = (this.globals && this.globals['bro.gltf']) || null;
+          const gltf = (this.globals && this.globals['bro.glb']) || null;
           rp = new RemotePlayer(p.id, this.scene, gltf);
           this.remotePlayers.set(p.id, rp);
         }
@@ -41,7 +42,7 @@ export class StateManager {
         seenDrones.add(d.id);
         let rd = this.remoteDrones.get(d.id);
         if (!rd) {
-          const gltf = (this.globals && this.globals['dron1.gltf']) || null;
+          const gltf = (this.globals && this.globals['dron1.glb']) || null;
           rd = new RemoteDrone(d.id, this.scene, gltf);
           this.remoteDrones.set(d.id, rd);
         }
@@ -78,6 +79,11 @@ export class StateManager {
 
   syncWithPlayerList(list) {
     if (!Array.isArray(list)) return;
+  }
+
+  setPlayerTeam(id, team) {
+    const rp = this.remotePlayers.get(id);
+    if (rp) rp.team = team;
   }
 
   removePlayer(id) {

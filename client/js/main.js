@@ -17,6 +17,7 @@ import { Hud } from './render/hud.js';
 import { Menu } from './ui/menu.js';
 import { DeathScreen } from './ui/deathScreen.js';
 import { DroneSelectMenu } from './ui/droneSelectMenu.js';
+import { TeamSelectMenu } from './ui/teamSelectMenu.js';
 import { placeMap } from './world/mapLoader.js';
 import { buildCollision } from './world/collisionLoader.js';
 import { CollisionWorld } from './world/collisionWorld.js';
@@ -46,7 +47,8 @@ const deathScreen = new DeathScreen();
 const sensitivity = new Sensitivity();
 const collisionWorld = new CollisionWorld();
 const droneSelect = new DroneSelectMenu();
-const socket = new GameSocket(`wss://server-3b0j.onrender.com`);
+const teamSelect = new TeamSelectMenu();
+const socket = new GameSocket('ws://localhost:8080');
 const stateManager = new StateManager(sceneMgr.scene);
 
 audio.attachListener(sceneMgr.camera);
@@ -100,21 +102,21 @@ function setLoading(pct, status) {
 async function bootstrap() {
   setLoading(0.05, 'загрузка моделей');
   const gltfs = await assets.loadAll(
-    ['map.gltf', 'collision.gltf', 'dron1.gltf', 'dron2.gltf', 'bro.gltf'],
+    ['map.glb', 'collision.glb', 'dron1.glb', 'dron2.glb', 'bro.glb'],
     (p, name) => setLoading(0.05 + p * 0.75, 'загрузка ' + name)
   );
   GameState.allGltfs = gltfs;
 
   setLoading(0.85, 'размещение карты');
-  GameState.mapRootRef = placeMap(sceneMgr.scene, gltfs['map.gltf']);
+  GameState.mapRootRef = placeMap(sceneMgr.scene, gltfs['map.glb']);
 
   setLoading(0.9, 'построение коллизий');
-  GameState.collisionRootRef = buildCollision(gltfs['collision.gltf']);
+  GameState.collisionRootRef = buildCollision(gltfs['collision.glb']);
   collisionWorld.attachRoot(GameState.collisionRootRef);
 
   setLoading(0.95, 'создание сущностей');
-  GameState.localPlayer = new LocalPlayer(sceneMgr.scene, gltfs['bro.gltf']);
-  GameState.localDrone = new LocalDrone(sceneMgr.scene, gltfs['dron1.gltf'], audio);
+  GameState.localPlayer = new LocalPlayer(sceneMgr.scene, gltfs['bro.glb']);
+  GameState.localDrone = new LocalDrone(sceneMgr.scene, gltfs['dron1.glb'], audio);
   GameState.explosionFX = new ExplosionFX(sceneMgr.scene);
 
   await droneSelect.load();
@@ -170,6 +172,44 @@ socket.on('players', (msg) => stateManager.syncWithPlayerList(msg.list));
 socket.on('leave', (msg) => stateManager.removePlayer(msg.id));
 socket.on('binary', (type, payload) => stateManager.handleBinary(type, payload, GameState.allGltfs));
 socket.on('validation_fail', (msg) => console.warn('[main] server rejected:', msg.reason));
+
+socket.on('team_choice', (msg) => {
+  const t = msg.teams || { red: 0, blue: 0 };
+  teamSelect.show(t);
+});
+
+teamSelect.onChoose = (team) => {
+  socket.sendJSON({ type: 'choose_team', team });
+};
+
+socket.on('team_assigned', (msg) => {
+  GameState.myTeam = msg.team;
+  GameState.mySpawn = msg.spawn;
+  teamSelect.hide();
+  respawnAll(els, msg.spawn);
+});
+
+socket.on('team_update', (msg) => {
+  GameState.remoteTeams[msg.id] = msg.team;
+  if (stateManager.setPlayerTeam) stateManager.setPlayerTeam(msg.id, msg.team);
+
+  const counts = { red: 0, blue: 0 };
+  for (const t of Object.values(GameState.remoteTeams)) {
+    if (t === 'red') counts.red++;
+    else if (t === 'blue') counts.blue++;
+  }
+  if (teamSelect.modal && !teamSelect.modal.classList.contains('hidden')) {
+    teamSelect.setCounts(counts.red, counts.blue);
+  }
+});
+
+socket.on('team_reject', (msg) => {
+  teamSelect.setStatus('Нельзя: ' + (msg.reason || 'unknown'));
+  teamSelect.selected = null;
+  teamSelect.btnRed.classList.remove('selected');
+  teamSelect.btnBlue.classList.remove('selected');
+});
+
 socket.on('error', (msg) => {
   console.error('[main] server error:', msg.reason);
   if (msg.reason === 'too_far_from_pad') {
@@ -188,9 +228,11 @@ socket.on('error', (msg) => {
   menu.setStatus('Ошибка: ' + (msg.reason || 'unknown'));
   menu.show();
 });
+
 socket.on('room_state', (msg) => {
   menu.setCount(msg.total, (msg.rooms || []).length * 10);
 });
+
 socket.on('drone_selected', (msg) => {
   if (GameState.localDrone) GameState.localDrone.droneId = msg.droneId;
 });
@@ -203,10 +245,15 @@ stateManager.onCrash = (ev) => {
     if (gY !== null) pos.y = gY;
   }
   if (GameState.explosionFX) {
-    GameState.explosionFX.trigger(pos, CFG.DRONE_EXPLOSION_RADIUS, CFG.DRONE_EXPLOSION_DAMAGE,
-      (c, r, d) => handleExplosionDamage(c, r, d, els));
+    GameState.explosionFX.trigger(pos, {
+      radius: CFG.DRONE_EXPLOSION_RADIUS,
+      damage: CFG.DRONE_EXPLOSION_DAMAGE,
+      height: 28,
+      waveSpeed: 24,
+      duration: 3.5,
+    }, (c, r, d) => handleExplosionDamage(c, r, d, els));
   }
-  if (GameState.audio) GameState.audio.playExplosion();
+  if (GameState.audio) GameState.audio.playExplosion(pos);
 };
 
 menu.onPlay = () => {
@@ -218,10 +265,12 @@ menu.onPlay = () => {
   hud.refreshCanvas();
   GameState.inGame = true;
   socket.connect('p_' + Math.floor(Math.random() * 10000));
-  respawnAll(els);
 };
 
-deathScreen.onRespawn = () => respawnAll(els);
+deathScreen.onRespawn = () => {
+  const spawn = GameState.mySpawn || CFG.PLAYER_SPAWN;
+  respawnAll(els, spawn);
+};
 
 els.btnDrones.addEventListener('pointerdown', (e) => { e.preventDefault(); droneSelect.toggle(); });
 els.btnCars.addEventListener('pointerdown', (e) => e.preventDefault());
@@ -257,6 +306,17 @@ const loop = new FixedLoop({
       processCrash(els);
     }
 
+    if (gs.audio && gs.localDrone) {
+      const d = gs.localDrone.physics;
+      const isDrone = gs.mode === 'fpv';
+      if (isDrone) {
+        if (!gs.audio.drone) gs.audio.playDrone();
+        gs.audio.updateDrone(d.rpm, gs.localDrone.params.MAX_RPM, d.getSpeed(), 0);
+      } else {
+        if (gs.audio.drone) gs.audio.stopDrone();
+      }
+    }
+
     netAcc += dt;
     if (netAcc >= 1 / CFG.NET_RATE) {
       netAcc = 0;
@@ -271,7 +331,7 @@ const loop = new FixedLoop({
           encodeDroneState(netBuf, 0, gs.playerId,
             d.position.x, d.position.y, d.position.z,
             d.quaternion.x, d.quaternion.y, d.quaternion.z, d.quaternion.w,
-            d.crashed);
+            d.crashed, d.rpm | 0);
           socket.sendBinary(wrapBinary(MSG.STATE_DRONE, netBuf));
         }
       }
@@ -280,6 +340,16 @@ const loop = new FixedLoop({
   onRender: (dt, alpha) => {
     const gs = GameState;
     sensitivity.camera.update(dt);
+
+    if (gs.audio) {
+      gs.audio.updateListener();
+
+      if (stateManager && stateManager.remoteDrones) {
+        for (const [id, rd] of stateManager.remoteDrones) {
+          gs.audio.updateRemoteDrone(id, rd.rpm || 0, 26000, rd.group.position);
+        }
+      }
+    }
 
     if (gs.inGame && gs.localPlayer && gs.localDrone) {
       gs.localPlayer.render(alpha);
@@ -319,9 +389,10 @@ const loop = new FixedLoop({
       const alt = isDrone ? gs.localDrone.physics.position.y : gs.localPlayer.physics.position.y;
       const vsi = isDrone ? gs.localDrone.physics.velocity.y : gs.localPlayer.physics.velocity.y;
       const rpm = isDrone ? gs.localDrone.physics.rpm : 0;
+      const battery = isDrone ? gs.localDrone.getBattery() : 100;
 
       hud.update(dt, {
-        speed, alt, vsi, battery: 100,
+        speed, alt, vsi, battery,
         ping: socket.ping, rpm, isDrone,
         hp: gs.localPlayer.physics.hp,
       });
@@ -335,4 +406,10 @@ const loop = new FixedLoop({
 
 loop.start();
 
-window.addEventListener('beforeunload', () => socket.disconnect());
+window.addEventListener('beforeunload', () => {
+  socket.disconnect();
+  if (audio) {
+    audio.stopDrone();
+    for (const id of [...audio.remoteDrones.keys()]) audio.removeRemoteDrone(id);
+  }
+});

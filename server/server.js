@@ -10,7 +10,7 @@ import { validatePlayerState, validateDroneState } from './validation/movementVa
 import { validateCrash } from './validation/crashValidator.js';
 import { validateHit } from './validation/hitValidator.js';
 
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 const SNAPSHOT_HZ = 20;
 const SNAPSHOT_INTERVAL = 1000 / SNAPSHOT_HZ;
 
@@ -105,6 +105,7 @@ wss.on('connection', (ws) => {
         sendJSON(ws, { type: 'welcome', id, count: room.count(), max: room.maxPlayers, roomId: room.id });
         room.broadcastJSON(room.playerListPayload());
         broadcastAllJSON({ type: 'room_state', rooms: roomManager.roomsState(), total: roomManager.totalPlayers() });
+        sendJSON(ws, { type: 'team_choice', teams: room.teamsState() });
 
         log('JOIN', `${id} "${name}" → ${room.id} (${room.count()}/${room.maxPlayers})`);
         return;
@@ -137,7 +138,7 @@ wss.on('connection', (ws) => {
           player.alive = s.alive;
         } else {
           stats.fail++;
-          player.validationFails = (player.validationFails || 0) + 1;
+          player.validationFails++;
           if (player.validationFails > MAX_VALIDATION_FAILS) {
             log('KICK', `P${player.id} — too many validation fails`);
             stats.kicks++;
@@ -156,9 +157,10 @@ wss.on('connection', (ws) => {
           player.drone.qx = s.qx; player.drone.qy = s.qy;
           player.drone.qz = s.qz; player.drone.qw = s.qw;
           player.drone.crashed = s.crashed;
+          player.drone.rpm = s.rpm;
         } else {
           stats.fail++;
-          player.validationFails = (player.validationFails || 0) + 1;
+          player.validationFails++;
           if (player.validationFails > MAX_VALIDATION_FAILS) {
             log('KICK', `P${player.id} — too many validation fails`);
             stats.kicks++;
@@ -210,22 +212,37 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (msg.type === 'choose_team') {
+      const team = msg.team === 'red' ? 'red' : 'blue';
+      const counts = room.teamCounts();
+      const other = team === 'red' ? 'blue' : 'red';
+      if (counts[team] > counts[other]) {
+        sendJSON(ws, { type: 'team_reject', reason: 'unbalanced' });
+        return;
+      }
+      player.team = team;
+      const spawn = team === 'red' ? room.spawnRed : room.spawnBlue;
+      sendJSON(ws, { type: 'team_assigned', team, spawn });
+      room.broadcastJSON({ type: 'team_update', id: player.id, team });
+      room.broadcastJSON(room.playerListPayload());
+      return;
+    }
+
     if (msg.type === 'enter_drone') {
       if (player.mode === 'fpv') return;
       const requestedDroneId = String(msg.droneId || 'dron1').slice(0, 32);
 
       const px = typeof msg.px === 'number' ? msg.px : player.x;
       const pz = typeof msg.pz === 'number' ? msg.pz : player.z;
-      player.x = px;
-      player.z = pz;
-      player.lastPX = px;
-      player.lastPZ = pz;
+      player.x = px; player.z = pz;
+      player.lastPX = px; player.lastPZ = pz;
 
       const dx = typeof msg.dx === 'number' ? msg.dx : px;
       const dz = typeof msg.dz === 'number' ? msg.dz : pz;
 
-      const padX = -367.0;
-      const padZ = 380.8;
+      const spawn = player.team === 'blue' ? room.spawnBlue : room.spawnRed;
+      const padX = spawn.x + 4.5;
+      const padZ = spawn.z;
       const distToPad = Math.hypot(px - padX, pz - padZ);
       const distToDrone = Math.hypot(px - dx, pz - dz);
 
@@ -244,6 +261,7 @@ wss.on('connection', (ws) => {
       player.drone.qz = 0;
       player.drone.qw = 1;
       player.drone.crashed = false;
+      player.drone.rpm = 0;
       player.lastDX = dx;
       player.lastDY = player.y;
       player.lastDZ = dz;
@@ -308,12 +326,13 @@ setInterval(() => {
       if (p.hasPlayerState) {
         players.push({ id: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, hp: p.hp, alive: p.alive });
       }
-      if (p.drone) {
+      if (p.mode === 'fpv' && p.drone) {
         drones.push({
           id: p.id,
           x: p.drone.x, y: p.drone.y, z: p.drone.z,
           qx: p.drone.qx, qy: p.drone.qy, qz: p.drone.qz, qw: p.drone.qw,
           crashed: p.drone.crashed,
+          rpm: p.drone.rpm || 0,
         });
       }
     }

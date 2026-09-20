@@ -17,4 +17,8 @@ export const GameState = {
   inGame: false,
   ready: false,
   lastCrashProcessed: false,
+  lastPlayerPos: null,
+  myTeam: null,
+  mySpawn: null,
+  remoteTeams: {},
 };

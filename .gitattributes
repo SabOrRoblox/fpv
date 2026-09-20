@@ -1,3 +1,0 @@
-client/assets/models/*.gltf filter=lfs diff=lfs merge=lfs -text
-client/assets/models/*.glb filter=lfs diff=lfs merge=lfs -text
-client/assets/models/*.bin filter=lfs diff=lfs merge=lfs -text

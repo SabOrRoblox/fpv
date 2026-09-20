@@ -15,11 +15,13 @@ export class Player {
     this.yaw = 0;
     this.hp = 100;
     this.alive = true;
+    this.team = null;
 
     this.drone = {
       x: 0, y: 0, z: 0,
       qx: 0, qy: 0, qz: 0, qw: 1,
       crashed: false,
+      rpm: 0,
     };
     this.droneId = 'dron1';
     this.mode = 'walk';

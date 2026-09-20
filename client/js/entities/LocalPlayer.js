@@ -20,22 +20,80 @@ export class LocalPlayer {
     this.armL = null;
     this.armR = null;
 
+    this.legLPivot = null;
+    this.legRPivot = null;
+    this.armLPivot = null;
+    this.armRPivot = null;
+
     if (gltf && gltf.scene) {
-      const model = gltf.scene.clone(true);
-      model.traverse((obj) => {
-        const n = obj.name ? obj.name.toLowerCase() : '';
-        if (n === 'leg1') this.legL = obj;
-        else if (n === 'leg2') this.legR = obj;
-        else if (n === 'arm1') this.armL = obj;
-        else if (n === 'arm2') this.armR = obj;
-        else if (n === 'body') this.body = obj;
-        else if (n === 'head') this.head = obj;
-      });
-      this.group.add(model);
+      this._loadModel(gltf);
     }
 
     this.group.scale.setScalar(SCALE);
     scene.add(this.group);
+  }
+
+  _loadModel(gltf) {
+    const model = gltf.scene.clone(true);
+    this.group.add(model);
+
+    let legLRaw = null, legRRaw = null;
+    let armLRaw = null, armRRaw = null;
+
+    model.traverse((obj) => {
+      const n = obj.name ? obj.name.toLowerCase() : '';
+      if (n === 'leg1') legLRaw = obj;
+      else if (n === 'leg2') legRRaw = obj;
+      else if (n === 'arm1') armLRaw = obj;
+      else if (n === 'arm2') armRRaw = obj;
+      else if (n === 'body') this.body = obj;
+      else if (n === 'head') this.head = obj;
+    });
+
+    this.legL = legLRaw;
+    this.legR = legRRaw;
+    this.armL = armLRaw;
+    this.armR = armRRaw;
+
+    if (legLRaw) this.legLPivot = this._makeTopPivot(legLRaw);
+    if (legRRaw) this.legRPivot = this._makeTopPivot(legRRaw);
+    if (armLRaw) this.armLPivot = this._makeTopPivot(armLRaw);
+    if (armRRaw) this.armRPivot = this._makeTopPivot(armRRaw);
+  }
+
+  _makeTopPivot(obj) {
+    const parent = obj.parent;
+    if (!parent) return null;
+
+    parent.updateMatrixWorld(true);
+
+    const box = new THREE.Box3().setFromObject(obj);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+
+    const pivotWorld = new THREE.Vector3(center.x, box.max.y, center.z);
+    const parentWorldInv = new THREE.Matrix4().copy(parent.matrixWorld).invert();
+    const pivotLocal = pivotWorld.clone().applyMatrix4(parentWorldInv);
+
+    const pivot = new THREE.Group();
+    pivot.name = (obj.name || 'limb') + '_pivot';
+    pivot.position.copy(pivotLocal);
+    parent.add(pivot);
+
+    const objWorldPos = new THREE.Vector3();
+    obj.getWorldPosition(objWorldPos);
+
+    parent.remove(obj);
+    pivot.add(obj);
+
+    const objWorldPos2 = new THREE.Vector3();
+    obj.getWorldPosition(objWorldPos2);
+
+    obj.position.x += objWorldPos.x - objWorldPos2.x;
+    obj.position.y += objWorldPos.y - objWorldPos2.y;
+    obj.position.z += objWorldPos.z - objWorldPos2.z;
+
+    return pivot;
   }
 
   spawn(collisionWorld, x, z, yaw = 0) {
@@ -121,13 +179,11 @@ export class LocalPlayer {
       this.animPhase *= Math.exp(-6 * dt);
     }
     const swing = Math.sin(this.animPhase) * 0.7 * Math.min(1, moveIntensity);
-    if (this.legL) this.legL.rotation.x = swing;
-    if (this.legR) this.legR.rotation.x = -swing;
-    if (this.armL) this.armL.rotation.x = -swing;
-    if (this.armR) this.armR.rotation.x = swing;
-    const bob = Math.abs(Math.sin(this.animPhase)) * 0.04 * moveIntensity;
-    if (this.body) this.body.position.y = 1.05 + bob;
-    if (this.head) this.head.position.y = 1.6 + bob;
+
+    if (this.legLPivot) this.legLPivot.rotation.x = swing;
+    if (this.legRPivot) this.legRPivot.rotation.x = -swing;
+    if (this.armLPivot) this.armLPivot.rotation.x = -swing;
+    if (this.armRPivot) this.armRPivot.rotation.x = swing;
   }
 
   get position() { return this.physics.position; }

@@ -3,7 +3,7 @@
     {
       "id": "dron1",
       "name": "Хищник",
-      "model": "dron1.gltf",
+      "model": "dron1.glb",
       "color": "#ff5533",
       "targetSize": 10.0,
       "params": {
@@ -19,13 +19,31 @@
         "YAW_RATE_DEG": 220,
         "INPUT_SMOOTH": 16.0,
         "STICK_DEADZONE": 0.08,
-        "STICK_EXPO": 0.30
+        "STICK_EXPO": 0.30,
+
+        "BATTERY_CAPACITY": 100,
+        "BATTERY_DRAIN_IDLE": 0.15,
+        "BATTERY_DRAIN_HOVER": 0.5,
+        "BATTERY_DRAIN_FULL": 2.0,
+
+        "EXPLOSION_RADIUS": 14.0,
+        "EXPLOSION_DAMAGE": 250,
+        "EXPLOSION_HEIGHT": 28.0,
+        "EXPLOSION_WAVE_SPEED": 24.0,
+        "EXPLOSION_DURATION": 3.5,
+        "EXPLOSION_FIRE_COUNT": 110,
+        "EXPLOSION_SMOKE_COUNT": 50,
+        "EXPLOSION_DEBRIS_COUNT": 40,
+        "EXPLOSION_CORE_COLOR": "#ffdd66",
+        "EXPLOSION_FIRE_COLOR": "#ff6600",
+        "EXPLOSION_SMOKE_COLOR": "#1a1a1a",
+        "EXPLOSION_DEBRIS_COLOR": "#3d2817"
       }
     },
     {
       "id": "dron2",
       "name": "Стрела",
-      "model": "dron2.gltf",
+      "model": "dron2.glb",
       "color": "#33aaff",
       "targetSize": 12.0,
       "params": {
@@ -41,7 +59,25 @@
         "YAW_RATE_DEG": 280,
         "INPUT_SMOOTH": 20.0,
         "STICK_DEADZONE": 0.06,
-        "STICK_EXPO": 0.20
+        "STICK_EXPO": 0.20,
+
+        "BATTERY_CAPACITY": 100,
+        "BATTERY_DRAIN_IDLE": 0.12,
+        "BATTERY_DRAIN_HOVER": 0.45,
+        "BATTERY_DRAIN_FULL": 1.8,
+
+        "EXPLOSION_RADIUS": 12.0,
+        "EXPLOSION_DAMAGE": 220,
+        "EXPLOSION_HEIGHT": 22.0,
+        "EXPLOSION_WAVE_SPEED": 28.0,
+        "EXPLOSION_DURATION": 3.0,
+        "EXPLOSION_FIRE_COUNT": 90,
+        "EXPLOSION_SMOKE_COUNT": 40,
+        "EXPLOSION_DEBRIS_COUNT": 30,
+        "EXPLOSION_CORE_COLOR": "#aaffff",
+        "EXPLOSION_FIRE_COLOR": "#44aaff",
+        "EXPLOSION_SMOKE_COLOR": "#0a1a2a",
+        "EXPLOSION_DEBRIS_COLOR": "#223344"
       }
     }
   ]

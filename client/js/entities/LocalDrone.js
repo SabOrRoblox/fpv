@@ -17,6 +17,9 @@ export class LocalDrone {
     this._gltf = null;
     this._baseScale = 1;
 
+    this.battery = 100;
+    this._lastBeepTimer = 0;
+
     this._interpPos = new THREE.Vector3();
     this._interpQuat = new THREE.Quaternion();
 
@@ -92,6 +95,7 @@ export class LocalDrone {
     }
     this.physics.reset({ x: pos.x, y, z: pos.z }, yaw);
     this.physics.groundY = gY;
+    this.battery = 100;
     this._sync();
   }
 
@@ -119,21 +123,43 @@ export class LocalDrone {
 
       if (!this.physics.crashed) {
         const airHeight = this.physics.position.y - (this.physics.groundY + CFG.DRONE_RADIUS);
-        if (airHeight > CFG.DRONE_RADIUS * 0.5) {
+        if (airHeight > CFG.DRONE_RADIUS * 3) {
           const impact = collisionWorld.raycastSphere(
             this.physics.position,
-            CFG.DRONE_RADIUS * 1.5,
+            CFG.DRONE_RADIUS,
             this.physics.velocity
           );
-          if (impact > CFG.DRONE_CRASH_SPEED) {
-            this.physics.crashed = true;
-          }
+          if (impact > CFG.DRONE_CRASH_SPEED * 2) this.physics.crashed = true;
         }
       }
     }
 
+    const p = this.params;
+    const rpmNorm = this.physics.rpm / (p.MAX_RPM || 26000);
+
+    if (this.piloted && !this.physics.crashed && this.battery > 0) {
+      let drain = p.BATTERY_DRAIN_IDLE;
+      if (rpmNorm > 0.6) drain = p.BATTERY_DRAIN_FULL;
+      else if (rpmNorm > 0.1) drain = p.BATTERY_DRAIN_HOVER;
+      this.battery = Math.max(0, this.battery - drain * dt);
+    }
+
+    if (this.battery <= 0 && this.piloted) {
+      this.physics.armed = false;
+      this.physics.piloted = false;
+      this.piloted = false;
+    }
+
+    if (this.piloted && this.battery < 20) {
+      this._lastBeepTimer += dt;
+      const interval = this.battery < 5 ? 0.4 : 1.0;
+      if (this._lastBeepTimer > interval) {
+        this._lastBeepTimer = 0;
+        if (this.audio && this.audio.playBeep) this.audio.playBeep(this.battery < 5);
+      }
+    }
+
     if (this.props) this.props.update(dt, this.physics.rpm);
-    if (this.audio) this.audio.setDroneRPM(this.physics.rpm, this.params.MAX_RPM);
   }
 
   render(alpha) {
@@ -153,6 +179,7 @@ export class LocalDrone {
     );
   }
 
+  getBattery() { return this.battery; }
   get position() { return this.physics.position; }
   get quaternion() { return this.physics.quaternion; }
 }
