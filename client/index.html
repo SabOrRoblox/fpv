@@ -46,7 +46,7 @@
         var time = new Date().toISOString().slice(11, 23);
         var line = '[' + time + '] [' + tag + '] ' + msg;
         lines.push(line);
-        if (lines.length > 400) lines.shift();
+        if (lines.length > 500) lines.shift();
         if (visible && el) render();
         try { console.log(line); } catch (e) {}
       }
@@ -58,8 +58,7 @@
         hide: function() { visible = false; if (el) el.style.display = 'none'; if (btn) btn.style.display = 'block'; }
       };
 
-      log('BOOT', 'HTML script start');
-      log('BOOT', 'url: ' + location.href);
+      log('BOOT', 'start, url=' + location.href);
 
       window.addEventListener('error', function(e) {
         if (e.target && e.target.tagName) {
@@ -160,7 +159,6 @@
       <div class="hp-fill" id="hud-hp-fill"></div>
       <div class="hp-text"><span id="hud-hp">100</span> HP</div>
     </div>
-
     <div id="drone-hud-parts" style="display:none;">
       <div class="hud-corner hud-tl">
         <div class="hud-metric"><span class="hud-label">ALT</span><span class="hud-value" id="hud-alt">0</span><span class="hud-unit">m</span></div>
@@ -170,19 +168,16 @@
         <div class="hud-metric"><span class="hud-label">BAT</span><span class="hud-value" id="hud-bat">100</span><span class="hud-unit">%</span></div>
         <div class="hud-metric"><span class="hud-label">PING</span><span class="hud-value" id="hud-ping">-</span><span class="hud-unit">ms</span></div>
       </div>
-
       <div class="gauge" style="bottom: 140px; right: 20px;">
         <canvas id="tacho"></canvas>
         <div class="gauge-label">RPM</div>
         <div class="gauge-value"><span id="hud-rpm">0</span></div>
       </div>
-
       <div class="gauge" style="bottom: 20px; right: 20px;">
         <canvas id="speedo"></canvas>
         <div class="gauge-label">SPD</div>
         <div class="gauge-value"><span id="hud-speed">0</span><span class="gauge-unit">km/h</span></div>
       </div>
-
       <div class="hud-center">
         <div class="crosshair-h"></div>
         <div class="crosshair-v"></div>
@@ -234,99 +229,106 @@
     (async function() {
       function log(tag, msg) { if (window.__dbg) window.__dbg.log(tag, msg); }
 
-      log('TEST', '=== IMPORT TESTS START ===');
+      log('TEST', '=== STEP 1: BASE IMPORTS ===');
 
-      let failCount = 0;
-
-      async function testImport(name, fn) {
+      let fails = 0;
+      async function T(name, fn) {
         try {
           const r = await fn();
-          log('TEST-OK', name + ' → ' + (r || 'ok'));
+          log('OK', name + ' → ' + (r || 'ok'));
         } catch (e) {
-          failCount++;
-          log('TEST-FAIL', name + ' → ' + (e.message || e));
-          if (e.stack) log('TEST-STACK', e.stack.split('\n').slice(0, 4).join(' | '));
+          fails++;
+          log('FAIL', name + ' → ' + (e.message || e));
+          if (e.stack) log('STACK', String(e.stack).split('\n').slice(0, 3).join(' | '));
         }
       }
 
-      await testImport('three', async () => {
+      await T('three', async () => {
         const m = await import('three');
         return 'v' + m.REVISION;
       });
 
-      await testImport('three-mesh-bvh', async () => {
+      await T('three-mesh-bvh', async () => {
         const m = await import('three-mesh-bvh');
         return Object.keys(m).length + ' exports';
       });
 
-      await testImport('three/addons/loaders/GLTFLoader.js', async () => {
+      await T('GLTFLoader', async () => {
         const m = await import('three/addons/loaders/GLTFLoader.js');
-        return m.GLTFLoader ? 'GLTFLoader ok' : 'no GLTFLoader';
+        return m.GLTFLoader ? 'ok' : 'no export';
       });
 
-      await testImport('/client/shared/config/config.js', async () => {
-        const m = await import('/client/shared/config/config.js');
-        return m.CFG ? 'CFG keys ' + Object.keys(m.CFG).length : 'no CFG';
+      log('TEST', '=== STEP 2: RAW FETCH main.js ===');
+
+      let mainText = null;
+      await T('fetch main.js as text', async () => {
+        const r = await fetch('/client/js/main.js');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        mainText = await r.text();
+        return mainText.length + ' bytes';
       });
 
-      await testImport('/client/shared/net/protocol.js', async () => {
-        const m = await import('/client/shared/net/protocol.js');
-        return m.MSG ? 'MSG keys ' + Object.keys(m.MSG).length : 'no MSG';
-      });
+      log('TEST', '=== STEP 3: PARSE main.js head ===');
+      if (mainText) {
+        const head = mainText.split('\n').slice(0, 30).join('\n');
+        log('MAIN-HEAD', '\n' + head);
+      }
 
-      await testImport('/client/js/core/systems.js', async () => {
-        const m = await import('/client/js/core/systems.js');
-        return Object.keys(m).length + ' exports';
-      });
+      log('TEST', '=== STEP 4: EXTRACT IMPORTS FROM main.js ===');
 
-      await testImport('/client/js/core/scene.js', async () => {
-        const m = await import('/client/js/core/scene.js');
-        return Object.keys(m).length + ' exports';
-      });
+      if (mainText) {
+        const importRe = /import\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/g;
+        const specs = [];
+        let m;
+        while ((m = importRe.exec(mainText)) !== null) {
+          specs.push(m[1]);
+        }
+        log('IMPORTS', 'found ' + specs.length + ' imports');
+        for (const s of specs) {
+          log('IMPORT', s);
+        }
 
-      await testImport('/client/js/core/sensitivity.js', async () => {
-        const m = await import('/client/js/core/sensitivity.js');
-        return Object.keys(m).length + ' exports';
-      });
+        log('TEST', '=== STEP 5: TRY RESOLVE EACH IMPORT ===');
 
-      await testImport('/client/js/net/socket.js', async () => {
-        const m = await import('/client/js/net/socket.js');
-        return Object.keys(m).length + ' exports';
-      });
+        for (const s of specs) {
+          await T('import(' + s + ')', async () => {
+            if (s.startsWith('http') || s.startsWith('/')) {
+              await import(s);
+            } else if (s.startsWith('.')) {
+              const base = '/client/js/';
+              const url = new URL(s, 'https://x' + base).pathname;
+              await import(url);
+            } else {
+              await import(s);
+            }
+            return 'resolved';
+          });
+        }
+      }
 
-      await testImport('/client/js/entities/LocalPlayer.js', async () => {
-        const m = await import('/client/js/entities/LocalPlayer.js');
-        return Object.keys(m).length + ' exports';
-      });
+      log('TEST', '=== STEP 6: BLOB IMPORT main.js ===');
 
-      await testImport('/client/js/entities/LocalDrone.js', async () => {
-        const m = await import('/client/js/entities/LocalDrone.js');
-        return Object.keys(m).length + ' exports';
-      });
+      if (mainText) {
+        await T('blob import', async () => {
+          const blob = new Blob([mainText], { type: 'application/javascript' });
+          const url = URL.createObjectURL(blob);
+          try {
+            await import(url);
+            return 'executed';
+          } finally {
+            URL.revokeObjectURL(url);
+          }
+        });
+      }
 
-      await testImport('/client/js/world/collisionLoader.js', async () => {
-        const m = await import('/client/js/world/collisionLoader.js');
-        return Object.keys(m).length + ' exports';
-      });
+      log('TEST', '=== STEP 7: TRY REAL main.js ===');
 
-      await testImport('/client/js/main.js', async () => {
+      await T('real main.js', async () => {
         await import('/client/js/main.js');
-        return 'main.js executed';
+        return 'executed';
       });
 
-      log('TEST', '=== IMPORT TESTS DONE, fails=' + failCount + ' ===');
-    })();
-  </script>
-
-  <script>
-    (function() {
-      if (window.__dbg) window.__dbg.log('MODULE', 'before main.js script tag');
-    })();
-  </script>
-  <script type="module" src="./js/main.js"></script>
-  <script>
-    (function() {
-      if (window.__dbg) window.__dbg.log('MODULE', 'after main.js script tag');
+      log('TEST', '=== DONE, fails=' + fails + ' ===');
     })();
   </script>
 </body>
