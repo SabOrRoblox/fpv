@@ -1,3 +1,5 @@
+import { SERVER_CONFIG } from '../config.js';
+
 export class Player {
   constructor(id, ws, name) {
     this.id = id;
@@ -27,8 +29,23 @@ export class Player {
     this.mode = 'walk';
     this.crashed = false;
     this.validationFails = 0;
+
+    this.pktCount = 0;
+    this.pktReset = Date.now();
   }
 
   touch() { this.lastSeen = Date.now(); }
-  isTimedOut() { return Date.now() - this.lastSeen > 5000; }
+  isTimedOut() { return Date.now() - this.lastSeen > SERVER_CONFIG.PLAYER_TIMEOUT_MS; }
+
+  checkRate() {
+    const now = Date.now();
+    if (now - this.pktReset > SERVER_CONFIG.RATE_WINDOW_MS) {
+      this.pktCount = 0;
+      this.pktReset = now;
+    }
+    this.pktCount++;
+    return this.pktCount <= SERVER_CONFIG.MAX_PACKETS_PER_SEC;
+  }
+
+  resetValidation() { this.validationFails = 0; }
 }

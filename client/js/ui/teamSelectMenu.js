@@ -8,13 +8,16 @@ export class TeamSelectMenu {
     this.status = document.getElementById('team-status');
     this.onChoose = null;
     this.selected = null;
+    this.isOpen = false;
 
     this.btnRed.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       this._pick('red');
     });
     this.btnBlue.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       this._pick('blue');
     });
   }
@@ -30,14 +33,16 @@ export class TeamSelectMenu {
 
   show(teams) {
     this.selected = null;
-    this.setCounts(teams.red, teams.blue);
-    this.setStatus('');
+    this.isOpen = true;
+    this.setCounts((teams && teams.red) || 0, (teams && teams.blue) || 0);
+    this.setStatus('Выбери сторону');
     this.btnRed.classList.remove('selected');
     this.btnBlue.classList.remove('selected');
     this.modal.classList.remove('hidden');
   }
 
   hide() {
+    this.isOpen = false;
     this.modal.classList.add('hidden');
   }
 
@@ -47,6 +52,12 @@ export class TeamSelectMenu {
   }
 
   setStatus(text) {
-    this.status.textContent = text;
+    this.status.textContent = text || '';
+  }
+
+  resetSelection() {
+    this.selected = null;
+    this.btnRed.classList.remove('selected');
+    this.btnBlue.classList.remove('selected');
   }
 }

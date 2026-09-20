@@ -32,7 +32,7 @@ import {
   enterDrone, exitDrone, processCrash, posProbe, handleExplosionDamage
 } from './core/systems.js';
 
-const DEBUG = true;
+const DEBUG = false;
 
 initErrorOverlay();
 
@@ -174,6 +174,7 @@ socket.on('binary', (type, payload) => stateManager.handleBinary(type, payload, 
 socket.on('validation_fail', (msg) => console.warn('[main] server rejected:', msg.reason));
 
 socket.on('team_choice', (msg) => {
+  if (GameState.myTeam) return;
   const t = msg.teams || { red: 0, blue: 0 };
   teamSelect.show(t);
 });
@@ -193,21 +194,20 @@ socket.on('team_update', (msg) => {
   GameState.remoteTeams[msg.id] = msg.team;
   if (stateManager.setPlayerTeam) stateManager.setPlayerTeam(msg.id, msg.team);
 
-  const counts = { red: 0, blue: 0 };
+  if (!teamSelect.isOpen) return;
+  let red = 0, blue = 0;
   for (const t of Object.values(GameState.remoteTeams)) {
-    if (t === 'red') counts.red++;
-    else if (t === 'blue') counts.blue++;
+    if (t === 'red') red++;
+    else if (t === 'blue') blue++;
   }
-  if (teamSelect.modal && !teamSelect.modal.classList.contains('hidden')) {
-    teamSelect.setCounts(counts.red, counts.blue);
-  }
+  if (GameState.myTeam === 'red') red++;
+  else if (GameState.myTeam === 'blue') blue++;
+  teamSelect.setCounts(red, blue);
 });
 
 socket.on('team_reject', (msg) => {
   teamSelect.setStatus('Нельзя: ' + (msg.reason || 'unknown'));
-  teamSelect.selected = null;
-  teamSelect.btnRed.classList.remove('selected');
-  teamSelect.btnBlue.classList.remove('selected');
+  teamSelect.resetSelection();
 });
 
 socket.on('error', (msg) => {
