@@ -35,7 +35,6 @@ export function setupNetworkHandlers(socket, opts = {}) {
   socket.on('open', () => {
     overlay.hide();
     badge.setState('connected', 0);
-    GameState.inGame = false;
   });
 
   socket.on('welcome', () => {
@@ -43,7 +42,7 @@ export function setupNetworkHandlers(socket, opts = {}) {
     badge.setState('connected', socket.ping);
   });
 
-  socket.on('close', (info) => {
+  socket.on('close', () => {
     if (socket.banned || socket.kicked) return;
     if (!navigator.onLine) {
       overlay.showOffline();
