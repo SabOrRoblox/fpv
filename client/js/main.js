@@ -162,7 +162,7 @@ function applyDronePreset(id) {
 
 bootstrap().catch((e) => console.error('BOOT FAIL', e));
 
-const net = setupNetworkHandlers(socket, {
+setupNetworkHandlers(socket, {
   onKickReset: () => {
     GameState.inGame = false;
     GameState.mode = 'walk';
@@ -407,13 +407,6 @@ const loop = new FixedLoop({
         const targetFov = 75 + Math.min(speed * 0.4, 25);
         camMgr.camera.fov += (targetFov - camMgr.camera.fov) * Math.min(1, dt * 6);
         camMgr.camera.updateProjectionMatrix();
-
-        const rpmNorm = gs.localDrone.physics.rpm / 26000;
-        const shakeAmp = 0.0035 * rpmNorm;
-        const t = performance.now() * 0.001;
-        camMgr.camera.rotateX(Math.sin(t * 31) * shakeAmp);
-        camMgr.camera.rotateY(Math.sin(t * 37) * shakeAmp);
-        camMgr.camera.rotateZ(Math.sin(t * 41) * shakeAmp * 0.5);
       }
 
       const isDrone = gs.mode === 'fpv';
