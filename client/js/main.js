@@ -46,7 +46,7 @@ const deathScreen = new DeathScreen();
 const sensitivity = new Sensitivity();
 const collisionWorld = new CollisionWorld();
 const droneSelect = new DroneSelectMenu();
-const socket = new GameSocket(`wss://sevrer-l3ck.onrender.com`);
+const socket = new GameSocket(`wss://server-3b0j.onrender.com`);
 const stateManager = new StateManager(sceneMgr.scene);
 
 audio.attachListener(sceneMgr.camera);
