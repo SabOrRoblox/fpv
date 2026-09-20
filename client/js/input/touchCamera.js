@@ -1,4 +1,4 @@
-import { clamp } from '../../shared/math/util.js';
+import { clamp } from '../../../shared/math/util.js';
 
 const DEAD_ZONE = 4;
 const RADIUS = 110;
