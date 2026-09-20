@@ -5,16 +5,6 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# Модели и текстуры — большие файлы
-client/assets/models/*.gltf
-client/assets/models/*.glb
-client/assets/models/*.bin
-client/assets/models/*.png
-client/assets/models/*.jpg
-client/assets/models/*.jpeg
-client/assets/models/texture_*
-client/assets/models/map_buffer_*
-
 # Бэкапы
 *.bak
 *.tmp
