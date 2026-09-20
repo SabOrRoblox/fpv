@@ -1,0 +1,48 @@
+{
+  "drones": [
+    {
+      "id": "dron1",
+      "name": "Хищник",
+      "model": "dron1.gltf",
+      "color": "#ff5533",
+      "targetSize": 10.0,
+      "params": {
+        "DRONE_MASS": 0.7,
+        "K_THRUST": 2.0e-8,
+        "MAX_RPM": 26000,
+        "MOTOR_TAU": 0.035,
+        "MOTOR_DECAY": 0.18,
+        "DRAG": { "x": 0.008, "y": 0.10, "z": 0.008 },
+        "MAX_SPEED_SOFT": 80,
+        "MAX_TILT_DEG": 85,
+        "PITCH_GAIN": 10.0,
+        "YAW_RATE_DEG": 220,
+        "INPUT_SMOOTH": 16.0,
+        "STICK_DEADZONE": 0.08,
+        "STICK_EXPO": 0.30
+      }
+    },
+    {
+      "id": "dron2",
+      "name": "Стрела",
+      "model": "dron2.gltf",
+      "color": "#33aaff",
+      "targetSize": 12.0,
+      "params": {
+        "DRONE_MASS": 0.55,
+        "K_THRUST": 2.4e-8,
+        "MAX_RPM": 28000,
+        "MOTOR_TAU": 0.025,
+        "MOTOR_DECAY": 0.12,
+        "DRAG": { "x": 0.006, "y": 0.08, "z": 0.006 },
+        "MAX_SPEED_SOFT": 95,
+        "MAX_TILT_DEG": 85,
+        "PITCH_GAIN": 12.0,
+        "YAW_RATE_DEG": 280,
+        "INPUT_SMOOTH": 20.0,
+        "STICK_DEADZONE": 0.06,
+        "STICK_EXPO": 0.20
+      }
+    }
+  ]
+}
