@@ -48,7 +48,7 @@ const sensitivity = new Sensitivity();
 const collisionWorld = new CollisionWorld();
 const droneSelect = new DroneSelectMenu();
 const teamSelect = new TeamSelectMenu();
-const socket = new GameSocket('ws://localhost:8080');
+const socket = new GameSocket('wss://server-3b0j.onrender.com');
 const stateManager = new StateManager(sceneMgr.scene);
 
 audio.attachListener(sceneMgr.camera);
