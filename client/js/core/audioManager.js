@@ -9,9 +9,9 @@ export class AudioManager {
     this.enabled = false;
     this.masterGain = null;
     this.listener = null;
-
     this.drone = null;
     this.remoteDrones = new Map();
+    this.wind = null;
   }
 
   init() {
@@ -19,11 +19,9 @@ export class AudioManager {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
     this.ctx = new Ctx();
-
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.value = 0.55;
     this.masterGain.connect(this.ctx.destination);
-
     this.enabled = true;
   }
 
@@ -85,6 +83,48 @@ export class AudioManager {
   updateDrone(rpm, maxRpm, speed, throttle) {
     if (!this.drone) return;
     this.drone.update(rpm, maxRpm, speed, throttle);
+  }
+
+  playWind() {
+    if (!this.enabled || !this.ctx) return;
+    if (this.wind) return;
+    const ctx = this.ctx;
+    const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 800;
+    filter.Q.value = 0.5;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    src.start();
+    this.wind = { src, filter, gain };
+  }
+
+  updateWind(speed) {
+    if (!this.wind || !this.ctx) return;
+    const t = Math.min(speed / 80, 1);
+    const now = this.ctx.currentTime;
+    try {
+      this.wind.gain.gain.linearRampToValueAtTime(t * 0.15, now + 0.1);
+      this.wind.filter.frequency.linearRampToValueAtTime(600 + t * 800, now + 0.1);
+    } catch {}
+  }
+
+  stopWind() {
+    if (!this.wind) return;
+    try { this.wind.src.stop(); } catch {}
+    try { this.wind.src.disconnect(); } catch {}
+    try { this.wind.filter.disconnect(); } catch {}
+    try { this.wind.gain.disconnect(); } catch {}
+    this.wind = null;
   }
 
   ensureRemoteDrone(id) {
