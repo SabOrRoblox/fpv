@@ -15,17 +15,13 @@
 
       function ensureEl() {
         if (el) return;
-        if (!document.body) {
-          setTimeout(ensureEl, 10);
-          return;
-        }
+        if (!document.body) { setTimeout(ensureEl, 10); return; }
         el = document.createElement('div');
         el.id = '__dbg_overlay';
-        el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.92);color:#0f0;font:11px/1.35 monospace;padding:8px;z-index:2147483647;white-space:pre-wrap;overflow:auto;pointer-events:auto;';
+        el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);color:#0f0;font:11px/1.35 monospace;padding:8px;z-index:2147483647;white-space:pre-wrap;overflow:auto;pointer-events:auto;';
         el.addEventListener('click', function(e) {
           if (e.target === el) {
-            visible = false;
-            el.style.display = 'none';
+            visible = false; el.style.display = 'none';
             if (btn) btn.style.display = 'block';
           }
         });
@@ -35,28 +31,24 @@
         btn.textContent = 'DBG';
         btn.style.cssText = 'position:fixed;bottom:20px;right:20px;width:60px;height:60px;border-radius:50%;background:#0f0;color:#000;font:bold 14px monospace;border:2px solid #000;z-index:2147483647;cursor:pointer;display:none;';
         btn.addEventListener('click', function() {
-          visible = true;
-          el.style.display = 'block';
-          btn.style.display = 'none';
+          visible = true; el.style.display = 'block'; btn.style.display = 'none';
         });
         document.body.appendChild(btn);
-
         render();
       }
 
       function render() {
         if (!el) return;
-        var txt = lines.join('\n');
-        el.textContent = txt;
+        el.textContent = lines.join('\n');
       }
 
       function log(tag, msg) {
         var time = new Date().toISOString().slice(11, 23);
         var line = '[' + time + '] [' + tag + '] ' + msg;
         lines.push(line);
-        if (lines.length > 200) lines.shift();
+        if (lines.length > 400) lines.shift();
         if (visible && el) render();
-        console.log(line);
+        try { console.log(line); } catch (e) {}
       }
 
       window.__dbg = {
@@ -67,9 +59,7 @@
       };
 
       log('BOOT', 'HTML script start');
-      log('BOOT', 'userAgent: ' + navigator.userAgent);
       log('BOOT', 'url: ' + location.href);
-      log('BOOT', 'online: ' + navigator.onLine);
 
       window.addEventListener('error', function(e) {
         if (e.target && e.target.tagName) {
@@ -95,64 +85,29 @@
       var origErr = console.error;
       console.error = function() {
         var a = Array.prototype.slice.call(arguments);
-        log('CONSOLE.ERR', a.map(function(x) { return (typeof x === 'object' ? JSON.stringify(x) : String(x)); }).join(' '));
+        log('CONSOLE.ERR', a.map(function(x) {
+          try { return typeof x === 'object' ? JSON.stringify(x) : String(x); } catch (e) { return String(x); }
+        }).join(' '));
         origErr.apply(console, arguments);
       };
 
       var origWarn = console.warn;
       console.warn = function() {
         var a = Array.prototype.slice.call(arguments);
-        log('CONSOLE.WARN', a.map(function(x) { return (typeof x === 'object' ? JSON.stringify(x) : String(x)); }).join(' '));
+        log('CONSOLE.WARN', a.map(function(x) {
+          try { return typeof x === 'object' ? JSON.stringify(x) : String(x); } catch (e) { return String(x); }
+        }).join(' '));
         origWarn.apply(console, arguments);
       };
-
-      window.addEventListener('online', function() { log('NET', 'online'); });
-      window.addEventListener('offline', function() { log('NET', 'offline'); });
-
-      var origFetch = window.fetch;
-      if (origFetch) {
-        window.fetch = function() {
-          var url = arguments[0];
-          log('FETCH', '> ' + url);
-          return origFetch.apply(this, arguments).then(function(r) {
-            log('FETCH', '< ' + r.status + ' ' + url);
-            return r;
-          }).catch(function(err) {
-            log('FETCH', '! ' + url + ' — ' + err.message);
-            throw err;
-          });
-        };
-      }
-
-      var OrigXHR = window.XMLHttpRequest;
-      if (OrigXHR) {
-        window.XMLHttpRequest = function() {
-          var x = new OrigXHR();
-          var origOpen = x.open;
-          var url = '';
-          x.open = function(method, u) {
-            url = u;
-            log('XHR', '> ' + method + ' ' + u);
-            return origOpen.apply(x, arguments);
-          };
-          x.addEventListener('load', function() {
-            log('XHR', '< ' + x.status + ' ' + url);
-          });
-          x.addEventListener('error', function() {
-            log('XHR', '! ' + url + ' — error');
-          });
-          return x;
-        };
-      }
 
       var OrigWS = window.WebSocket;
       if (OrigWS) {
         window.WebSocket = function(url, protocols) {
           log('WS', '> ' + url);
           var ws = protocols ? new OrigWS(url, protocols) : new OrigWS(url);
-          ws.addEventListener('open', function() { log('WS', '< OPEN ' + url); });
-          ws.addEventListener('close', function(e) { log('WS', '< CLOSE ' + url + ' code=' + e.code + ' reason=' + (e.reason || '')); });
-          ws.addEventListener('error', function() { log('WS', '< ERROR ' + url); });
+          ws.addEventListener('open', function() { log('WS', '< OPEN'); });
+          ws.addEventListener('close', function(e) { log('WS', '< CLOSE code=' + e.code + ' reason=' + (e.reason || '')); });
+          ws.addEventListener('error', function() { log('WS', '< ERROR'); });
           return ws;
         };
         window.WebSocket.prototype = OrigWS.prototype;
@@ -162,26 +117,11 @@
         window.WebSocket.CLOSED = OrigWS.CLOSED;
       }
 
-      var _setInterval = window.setInterval;
-      window.setInterval = function() {
-        try { return _setInterval.apply(window, arguments); }
-        catch (e) { log('SETINTERVAL', e.message); throw e; }
-      };
-
-      var _setTimeout = window.setTimeout;
-      window.setTimeout = function() {
-        try { return _setTimeout.apply(window, arguments); }
-        catch (e) { log('SETTIMEOUT', e.message); throw e; }
-      };
-
       document.addEventListener('DOMContentLoaded', function() {
         log('DOM', 'DOMContentLoaded');
         ensureEl();
       });
-
-      window.addEventListener('load', function() {
-        log('LOAD', 'window load');
-      });
+      window.addEventListener('load', function() { log('LOAD', 'window load'); });
     })();
   </script>
 
@@ -289,6 +229,94 @@
   <div id="error-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.9);color:#e86c6c;font-family:monospace;font-size:12px;padding:20px;z-index:9999;overflow:auto;display:none;">
     <div id="error-text"></div>
   </div>
+
+  <script type="module">
+    (async function() {
+      function log(tag, msg) { if (window.__dbg) window.__dbg.log(tag, msg); }
+
+      log('TEST', '=== IMPORT TESTS START ===');
+
+      let failCount = 0;
+
+      async function testImport(name, fn) {
+        try {
+          const r = await fn();
+          log('TEST-OK', name + ' → ' + (r || 'ok'));
+        } catch (e) {
+          failCount++;
+          log('TEST-FAIL', name + ' → ' + (e.message || e));
+          if (e.stack) log('TEST-STACK', e.stack.split('\n').slice(0, 4).join(' | '));
+        }
+      }
+
+      await testImport('three', async () => {
+        const m = await import('three');
+        return 'v' + m.REVISION;
+      });
+
+      await testImport('three-mesh-bvh', async () => {
+        const m = await import('three-mesh-bvh');
+        return Object.keys(m).length + ' exports';
+      });
+
+      await testImport('three/addons/loaders/GLTFLoader.js', async () => {
+        const m = await import('three/addons/loaders/GLTFLoader.js');
+        return m.GLTFLoader ? 'GLTFLoader ok' : 'no GLTFLoader';
+      });
+
+      await testImport('/client/shared/config/config.js', async () => {
+        const m = await import('/client/shared/config/config.js');
+        return m.CFG ? 'CFG keys ' + Object.keys(m.CFG).length : 'no CFG';
+      });
+
+      await testImport('/client/shared/net/protocol.js', async () => {
+        const m = await import('/client/shared/net/protocol.js');
+        return m.MSG ? 'MSG keys ' + Object.keys(m.MSG).length : 'no MSG';
+      });
+
+      await testImport('/client/js/core/systems.js', async () => {
+        const m = await import('/client/js/core/systems.js');
+        return Object.keys(m).length + ' exports';
+      });
+
+      await testImport('/client/js/core/scene.js', async () => {
+        const m = await import('/client/js/core/scene.js');
+        return Object.keys(m).length + ' exports';
+      });
+
+      await testImport('/client/js/core/sensitivity.js', async () => {
+        const m = await import('/client/js/core/sensitivity.js');
+        return Object.keys(m).length + ' exports';
+      });
+
+      await testImport('/client/js/net/socket.js', async () => {
+        const m = await import('/client/js/net/socket.js');
+        return Object.keys(m).length + ' exports';
+      });
+
+      await testImport('/client/js/entities/LocalPlayer.js', async () => {
+        const m = await import('/client/js/entities/LocalPlayer.js');
+        return Object.keys(m).length + ' exports';
+      });
+
+      await testImport('/client/js/entities/LocalDrone.js', async () => {
+        const m = await import('/client/js/entities/LocalDrone.js');
+        return Object.keys(m).length + ' exports';
+      });
+
+      await testImport('/client/js/world/collisionLoader.js', async () => {
+        const m = await import('/client/js/world/collisionLoader.js');
+        return Object.keys(m).length + ' exports';
+      });
+
+      await testImport('/client/js/main.js', async () => {
+        await import('/client/js/main.js');
+        return 'main.js executed';
+      });
+
+      log('TEST', '=== IMPORT TESTS DONE, fails=' + failCount + ' ===');
+    })();
+  </script>
 
   <script>
     (function() {
