@@ -30,6 +30,7 @@ export class DronePhysics {
     this._smoothedPitch = 0;
     this._yawRate = 0;
     this._noiseSeed = Math.random() * 1000;
+    this._rpmNoise = 0;
   }
 
   setParams(params) {
@@ -54,6 +55,7 @@ export class DronePhysics {
     this._smoothedYaw = 0;
     this._smoothedPitch = 0;
     this._yawRate = 0;
+    this._rpmNoise = 0;
     this._setQuat();
 
     v3set(this.prevPosition, pos.x, pos.y, pos.z);
@@ -169,7 +171,6 @@ export class DronePhysics {
       this._yawRate *= Math.exp(-6 * dt);
     }
 
-    // турбулентность (мелкое дрожание)
     const turb = p.TURBULENCE || 0;
     if (active && turb > 0) {
       const t = performance.now() * 0.001 + this._noiseSeed;
@@ -193,25 +194,27 @@ export class DronePhysics {
     if (active) {
       const t = performance.now() * 0.001 + this._noiseSeed;
 
-      // шум ±3% от target
-      const noise = (Math.sin(t * 17.3) + Math.sin(t * 23.7) * 0.7) * 0.015 * maxRpm;
-      target += noise;
+      const noise = (
+        Math.sin(t * 17.3) * 0.035 +
+        Math.sin(t * 23.7) * 0.025 +
+        Math.sin(t * 41.1) * 0.015 +
+        Math.sin(t * 67.3) * 0.010
+      ) * maxRpm;
 
-      // просадка при вертикальной скорости (набор высоты грузит моторы)
+      this._rpmNoise += (noise - this._rpmNoise) * 0.35;
+      target += this._rpmNoise;
+
       const vy = this.velocity.y;
       const loadFactor = 1 - Math.min(Math.max(-vy * 0.005, -0.1), 0.15);
       target *= loadFactor;
 
-      // просадка при yaw (резкий поворот грузит моторы)
       const yawAbs = Math.abs(this._smoothedYaw);
       const yawLoad = 1 - Math.min(yawAbs * 0.08, 0.1);
       target *= yawLoad;
 
-      // буст при наклоне (эффективность винта падает под углом)
       const tiltAbs = Math.abs(this._pitchAngle);
       target *= 1 + tiltAbs * 0.15;
 
-      // ground effect (у земли винт отталкивается от земли — можно сбросить обороты)
       const airHeight = this.position.y - (this.groundY + this.cfg.DRONE_RADIUS);
       if (airHeight < 2.0 && airHeight > 0) {
         target /= 1 + (1 - airHeight / 2.0) * 0.12;
@@ -234,7 +237,6 @@ export class DronePhysics {
     const cy = Math.cos(yaw * 0.5), sy = Math.sin(yaw * 0.5);
     const cr = Math.cos(roll * 0.5), sr = Math.sin(roll * 0.5);
 
-    // порядок Y-X-Z (yaw → pitch → roll)
     this.quaternion.x = sp * cy * cr + cp * sy * sr;
     this.quaternion.y = sy * cp * cr - cy * sp * sr;
     this.quaternion.z = cy * cp * sr - sy * sp * cr;
@@ -263,7 +265,6 @@ export class DronePhysics {
     this.velocity.y += ay * dt;
     this.velocity.z += az * dt;
 
-    // турбулентный ветер (лёгкое смещение)
     const turb = p.TURBULENCE || 0;
     if (this.piloted && turb > 0) {
       const t = performance.now() * 0.001 + this._noiseSeed;
@@ -334,5 +335,9 @@ export class DronePhysics {
   getSpeed() {
     const s = Math.hypot(this.velocity.x, this.velocity.y, this.velocity.z);
     return isFinite(s) ? s : 0;
+  }
+
+  getBattery() {
+    return this._battery !== undefined ? this._battery : 100;
   }
 }

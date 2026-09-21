@@ -1,5 +1,3 @@
-
-
 import * as THREE from 'three';
 import { CFG } from '../../shared/config/config.js';
 import {
@@ -98,6 +96,7 @@ const camOffsetVec = new THREE.Vector3();
 const camTargetPos = new THREE.Vector3();
 const camTiltQuat = new THREE.Quaternion();
 const camTiltAxis = new THREE.Vector3(1, 0, 0);
+const camForward = new THREE.Vector3();
 
 function setLoading(pct, status) {
   loadingPct.textContent = Math.round(pct * 100);
@@ -310,6 +309,7 @@ els.btnPos.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPr
 
 let netAcc = 0;
 const netBuf = new ArrayBuffer(DRONE_STATE_SIZE);
+let camInitialized = false;
 
 const loop = new FixedLoop({
   renderer: sceneMgr.renderer,
@@ -323,6 +323,7 @@ const loop = new FixedLoop({
       gs.localPlayer.update(dt, sensitivity.getPlayerInput(), gs.camYaw, gs.collisionWorld);
       const canEnter = distToPad() < CFG.PAD_RADIUS + 2.0 && gs.localPlayer.alive;
       els.btnEnter.style.display = canEnter ? 'block' : 'none';
+      camInitialized = false;
     } else {
       const stick = sensitivity.getDroneInput();
       const ph = gs.localDrone.physics;
@@ -364,8 +365,7 @@ const loop = new FixedLoop({
           encodeDroneState(netBuf, 0, gs.playerId,
             d.position.x, d.position.y, d.position.z,
             d.quaternion.x, d.quaternion.y, d.quaternion.z, d.quaternion.w,
-            d.crashed, d.rpm | 0,
-            droneIdToIndex(gs.localDrone.droneId));
+            d.crashed, d.rpm | 0, droneIdToIndex(gs.localDrone.droneId));
           socket.sendBinary(wrapBinary(MSG.STATE_DRONE, netBuf));
         }
       }
@@ -406,27 +406,44 @@ const loop = new FixedLoop({
       } else {
         const p = gs.localDrone.group.position;
         const q = gs.localDrone.group.quaternion;
-        camOffsetVec.set(0, CFG.FPV_NOSE_UP, CFG.FPV_NOSE_FORWARD).applyQuaternion(q);
+        camForward.set(0, CFG.FPV_NOSE_UP, CFG.FPV_NOSE_FORWARD).applyQuaternion(q);
 
         camTargetPos.set(
-          p.x + camOffsetVec.x,
-          p.y + camOffsetVec.y,
-          p.z + camOffsetVec.z
+          p.x + camForward.x,
+          p.y + camForward.y,
+          p.z + camForward.z
         );
 
-        const posK = 1 - Math.exp(-25 * dt);
-        camMgr.camera.position.lerp(camTargetPos, posK);
+        if (!camInitialized) {
+          camMgr.camera.position.copy(camTargetPos);
+          camMgr.camera.quaternion.copy(q);
+          camTiltQuat.setFromAxisAngle(camTiltAxis, camMgr.camTilt);
+          camMgr.camera.quaternion.multiply(camTiltQuat);
+          camMgr.camera.fov = 75;
+          camMgr.camera.updateProjectionMatrix();
+          camInitialized = true;
+        } else {
+          const posK = 1 - Math.exp(-28 * dt);
+          camMgr.camera.position.lerp(camTargetPos, posK);
 
-        const rotK = 1 - Math.exp(-18 * dt);
-        camMgr.camera.quaternion.slerp(q, rotK);
+          const rotK = 1 - Math.exp(-22 * dt);
+          camMgr.camera.quaternion.slerp(q, rotK);
+          camTiltQuat.setFromAxisAngle(camTiltAxis, camMgr.camTilt);
+          camMgr.camera.quaternion.multiply(camTiltQuat);
 
-        camTiltQuat.setFromAxisAngle(camTiltAxis, camMgr.camTilt);
-        camMgr.camera.quaternion.multiply(camTiltQuat);
+          const speed = gs.localDrone.physics.getSpeed();
+          const targetFov = 75 + Math.min(speed * 0.35, 20);
+          camMgr.camera.fov += (targetFov - camMgr.camera.fov) * Math.min(1, dt * 5);
+          camMgr.camera.updateProjectionMatrix();
 
-        const speed = gs.localDrone.physics.getSpeed();
-        const targetFov = 75 + Math.min(speed * 0.4, 25);
-        camMgr.camera.fov += (targetFov - camMgr.camera.fov) * Math.min(1, dt * 6);
-        camMgr.camera.updateProjectionMatrix();
+          const rpmNorm = gs.localDrone.physics.rpm / 26000;
+          const shakeAmp = 0.0008 * rpmNorm;
+          if (shakeAmp > 0) {
+            const t = performance.now() * 0.001;
+            camMgr.camera.rotateX(Math.sin(t * 47) * shakeAmp);
+            camMgr.camera.rotateY(Math.sin(t * 53) * shakeAmp);
+          }
+        }
       }
 
       const isDrone = gs.mode === 'fpv';
