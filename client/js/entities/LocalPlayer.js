@@ -9,6 +9,10 @@ export class LocalPlayer {
     this.physics = new PlayerPhysics();
     this.group = new THREE.Group();
     this.animPhase = 0;
+    this._resolveAcc = 0;
+    this._cachedGY = null;
+    this._cachedGYX = 0;
+    this._cachedGYZ = 0;
 
     this.prevPos = new THREE.Vector3();
     this.currPos = new THREE.Vector3();
@@ -19,7 +23,6 @@ export class LocalPlayer {
     this.legR = null;
     this.armL = null;
     this.armR = null;
-
     this.legLPivot = null;
     this.legRPivot = null;
     this.armLPivot = null;
@@ -108,6 +111,8 @@ export class LocalPlayer {
     this.prevPos.set(x, y, z);
     this.currPos.set(x, y, z);
     this.animPhase = 0;
+    this._cachedGY = null;
+    this._resolveAcc = 0;
   }
 
   update(dt, input, camYaw, collisionWorld) {
@@ -137,11 +142,17 @@ export class LocalPlayer {
     this.physics.step(dt, worldMoveX, worldMoveZ, CFG.PLAYER_SPEED, CFG.PLAYER_ACCEL, CFG.GRAVITY);
 
     if (collisionWorld && collisionWorld.isReady()) {
-      const gY = collisionWorld.raycastDown(
-        this.physics.position.x,
-        this.physics.position.z,
-        10000, -10000
-      );
+      const px = this.physics.position.x;
+      const pz = this.physics.position.z;
+      const dxc = Math.abs(px - this._cachedGYX);
+      const dzc = Math.abs(pz - this._cachedGYZ);
+      if (this._cachedGY === null || dxc > 0.5 || dzc > 0.5) {
+        this._cachedGY = collisionWorld.raycastDownCached(px, pz, 10000, -10000);
+        this._cachedGYX = px;
+        this._cachedGYZ = pz;
+      }
+
+      const gY = this._cachedGY;
       if (gY !== null) {
         const minY = gY + 0.1;
         if (this.physics.position.y < minY) {
@@ -149,7 +160,17 @@ export class LocalPlayer {
           if (this.physics.velocity.y < 0) this.physics.velocity.y = 0;
         }
       }
-      collisionWorld.resolvePlayer(this.physics.position, this.physics.velocity, this.physics.radius, dt);
+
+      this._resolveAcc += dt;
+      if (this._resolveAcc >= 1 / 15) {
+        this._resolveAcc = 0;
+        collisionWorld.resolvePlayer(
+          this.physics.position,
+          this.physics.velocity,
+          this.physics.radius,
+          1 / 15
+        );
+      }
     }
 
     if (this.physics.position.y < -50) {
@@ -179,7 +200,6 @@ export class LocalPlayer {
       this.animPhase *= Math.exp(-6 * dt);
     }
     const swing = Math.sin(this.animPhase) * 0.7 * Math.min(1, moveIntensity);
-
     if (this.legLPivot) this.legLPivot.rotation.x = swing;
     if (this.legRPivot) this.legRPivot.rotation.x = -swing;
     if (this.armLPivot) this.armLPivot.rotation.x = -swing;

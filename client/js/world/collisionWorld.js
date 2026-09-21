@@ -15,6 +15,7 @@ export class CollisionWorld {
     this._invMat = new THREE.Matrix4();
     this._localTarget = new THREE.Vector3();
     this._closest = new THREE.Vector3();
+    this._tmpVec = new THREE.Vector3();
   }
 
   attachRoot(root) {
@@ -77,10 +78,13 @@ export class CollisionWorld {
       const mesh = this.meshes[i];
       const bs = mesh.geometry.boundingSphere;
       if (bs) {
-        const dx = position.x - mesh.matrixWorld.elements[12];
-        const dy = position.y - mesh.matrixWorld.elements[13];
-        const dz = position.z - mesh.matrixWorld.elements[14];
-        if (dx * dx + dy * dy + dz * dz > (bs.radius + effR) * (bs.radius + effR)) continue;
+        const e = mesh.matrixWorld.elements;
+        const dx = position.x - e[12];
+        const dy = position.y - e[13];
+        const dz = position.z - e[14];
+        const r = bs.radius + effR;
+        if (Math.abs(dy) > r) continue;
+        if (dx * dx + dz * dz > r * r) continue;
       }
 
       const hit = this._sphereVsMesh(position, effR, effR2, mesh);

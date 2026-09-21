@@ -1,11 +1,24 @@
-
 import * as THREE from 'three';
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
+function detectLowEnd(canvas) {
+  try {
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (!gl) return true;
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const renderer = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
+    return /Mali-G5|Mali-G7|Mali-T|Adreno 5|Adreno 6|PowerVR|SGX/i.test(renderer);
+  } catch {
+    return false;
+  }
+}
+
 export class SceneManager {
   constructor(canvas) {
     this.canvas = canvas;
+    const lowEnd = isMobile && detectLowEnd(canvas);
+
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: false,
@@ -13,9 +26,15 @@ export class SceneManager {
       precision: 'mediump',
       stencil: false,
       depth: true,
+      alpha: false,
     });
 
-    const dpr = isMobile ? Math.min(window.devicePixelRatio, 1.5) : Math.min(window.devicePixelRatio, 2);
+    const dpr = lowEnd
+      ? 1.0
+      : isMobile
+        ? Math.min(window.devicePixelRatio, 1.5)
+        : Math.min(window.devicePixelRatio, 2);
+
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;

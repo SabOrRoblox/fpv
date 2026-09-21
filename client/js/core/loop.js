@@ -9,6 +9,7 @@ export class FixedLoop {
     this.running = false;
     this.alpha = 0;
     this.maxFrameDt = 0.1;
+    this.maxSteps = 3;
   }
 
   start() {
@@ -31,12 +32,12 @@ export class FixedLoop {
     if (frameDt > this.maxFrameDt) frameDt = this.maxFrameDt;
     this.accumulator += frameDt;
     let steps = 0;
-    while (this.accumulator >= this.physDt && steps < 8) {
+    while (this.accumulator >= this.physDt && steps < this.maxSteps) {
       this.onFixedUpdate(this.physDt);
       this.accumulator -= this.physDt;
       steps++;
     }
-    if (steps >= 8) this.accumulator = 0;
+    if (steps >= this.maxSteps) this.accumulator = 0;
     this.alpha = this.accumulator / this.physDt;
     this.onRender(frameDt, this.alpha);
   };
