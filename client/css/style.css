@@ -27,7 +27,6 @@ html, body {
   touch-action: none;
 }
 
-/* ============ OVERLAY BASE ============ */
 .overlay {
   position: fixed;
   inset: 0;
@@ -42,7 +41,6 @@ html, body {
 
 .overlay.hidden { display: none; }
 
-/* ============ LOADING ============ */
 .loading-screen {
   background: radial-gradient(ellipse at center, #0d1219 0%, #05070a 100%);
 }
@@ -122,7 +120,6 @@ html, body {
   text-transform: uppercase;
 }
 
-/* ============ MENU ============ */
 #menu {
   background: radial-gradient(ellipse at center, #0d1219 0%, #05070a 100%);
 }
@@ -257,7 +254,6 @@ html, body {
   text-align: center;
 }
 
-/* ============ TEAM SELECT MODAL ============ */
 .modal {
   position: fixed;
   inset: 0;
@@ -308,7 +304,6 @@ html, body {
   border-bottom: 1px solid rgba(232,168,84,0.2);
 }
 
-/* ============ TEAM TILES ============ */
 .team-modal { width: min(94vw, 440px); }
 
 .team-grid {
@@ -410,7 +405,6 @@ html, body {
   opacity: 0.6;
 }
 
-/* ============ HUD ============ */
 #hud {
   position: fixed;
   inset: 0;
@@ -525,7 +519,6 @@ html, body {
   color: #5a9c9c;
 }
 
-/* ============ GAUGES ============ */
 .gauge {
   position: absolute;
   width: 100px;
@@ -572,7 +565,6 @@ html, body {
   margin-left: 2px;
 }
 
-/* ============ CROSSHAIR ============ */
 .hud-center {
   position: absolute;
   top: 50%;
@@ -617,7 +609,6 @@ html, body {
   box-shadow: 0 0 6px #e8a854;
 }
 
-/* ============ HINT ============ */
 .hud-hint {
   position: absolute;
   bottom: 30%;
@@ -634,7 +625,32 @@ html, body {
 
 .hud-hint.visible { opacity: 1; }
 
-/* ============ JOYSTICK ============ */
+.hud-chip {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 9px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(90, 156, 156, 0.4);
+  border-radius: 10px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  color: #c8d4e0;
+  pointer-events: none;
+  z-index: 60;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.hud-chip-fps {
+  top: 12px;
+  right: 12px;
+  color: #7ec4a8;
+}
+
 .joystick {
   position: fixed;
   width: 140px;
@@ -704,7 +720,6 @@ html, body {
 .joystick-label-left { left: 4px; top: 50%; transform: translateY(-50%); }
 .joystick-label-right { right: 4px; top: 50%; transform: translateY(-50%); }
 
-/* ============ ACTION BUTTONS ============ */
 .action-btn {
   position: fixed;
   border-radius: 50%;
@@ -749,7 +764,6 @@ html, body {
   opacity: 0.85;
 }
 
-/* ============ SIDE BUTTONS ============ */
 #side-buttons {
   position: fixed;
   right: 20px;
@@ -799,7 +813,6 @@ html, body {
   background: rgba(232,168,84,0.3);
 }
 
-/* ============ DRONE CYLINDER (THROTTLE) ============ */
 #drone-cylinder {
   position: fixed;
   bottom: 20px;
@@ -871,7 +884,6 @@ html, body {
 .cyl-label-top { top: -16px; }
 .cyl-label-bottom { bottom: -16px; }
 
-/* ============ DRONE SELECT ============ */
 .drone-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -913,7 +925,6 @@ html, body {
   border: 2px solid rgba(255,255,255,0.15);
 }
 
-/* ============ DEATH SCREEN ============ */
 #death-screen {
   background: radial-gradient(ellipse at center, rgba(80,10,10,0.6) 0%, rgba(0,0,0,0.95) 100%);
 }
@@ -962,7 +973,6 @@ html, body {
   box-shadow: 0 0 24px rgba(232,108,108,0.5);
 }
 
-/* ============ ERROR OVERLAY ============ */
 #error-overlay:not(.hidden) {
   display: block;
 }
@@ -972,7 +982,6 @@ html, body {
   word-break: break-all;
 }
 
-/* ============ SCROLLBAR ============ */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -987,7 +996,6 @@ html, body {
   border-radius: 2px;
 }
 
-/* ============ RESPONSIVE ============ */
 @media (max-height: 500px) {
   .modal-box { padding: 16px; }
   .team-tile { padding: 14px 8px; }
@@ -997,13 +1005,4 @@ html, body {
   .tacho-gauge { bottom: 106px; }
   .joystick { width: 120px; height: 120px; }
   .joystick-knob { width: 48px; height: 48px; }
-  #drone-cylinder { height: 160px; }
-  .cyl-track { height: 140px; }
-  .cyl-ball { width: 40px; height: 40px; }
-}
-
-@media (min-width: 720px) {
-  .menu-box { padding: 36px 40px; }
-  .team-badge { width: 60px; height: 60px; }
-  .team-count { font-size: 32px; }
 }

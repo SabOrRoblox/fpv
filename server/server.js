@@ -42,13 +42,11 @@ function handleJoin(ws, msg) {
   ws.player = player;
 
   for (const room of roomManager.rooms.values()) {
-    for (const existing of [...room.players.values()]) {
+    for (const existing of room.players.values()) {
       if (existing.ws !== ws && existing.name === name) {
-        log('DUP', `close old "${name}" P${existing.id}`);
+        log('DUP', `mark old "${name}" P${existing.id} for kick`);
+        existing._kicked = true;
         try { existing.ws.close(); } catch {}
-        room.remove(existing.id);
-        room.broadcastJSON({ type: 'leave', id: existing.id });
-        room.broadcastJSON(room.playerListPayload());
       }
     }
   }
@@ -78,7 +76,10 @@ function handleJoin(ws, msg) {
     total: roomManager.totalPlayers(),
   });
 
+  room.markDirty();
   sendJSON(ws, { type: 'team_choice', teams: room.teamsState() });
+  const c = room.teamCounts();
+  room.broadcastJSON({ type: 'team_counts', red: c.red, blue: c.blue });
 
   log('JOIN', `P${id} "${name}" → ${room.id} (${room.count()}/${room.maxPlayers})`);
 }
@@ -102,7 +103,9 @@ function handleLeave(ws) {
     total: roomManager.totalPlayers(),
   });
 
-  log('LEAVE', `P${player.id} "${player.name}"`);
+  const tag = player._kicked ? 'KICKED' : 'LEAVE';
+  log(tag, `P${player.id} "${player.name}"`);
+  ws.player = null;
 }
 
 wss.on('connection', (ws) => {
@@ -149,7 +152,7 @@ wss.on('connection', (ws) => {
 
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
-    handleJSON(ws, player, room, msg, stats);
+    handleJSON(ws, player, room, msg, stats, roomManager);
   });
 
   ws.on('close', () => handleLeave(ws));
@@ -158,7 +161,29 @@ wss.on('connection', (ws) => {
 
 const snapshot = createSnapshotModule(roomManager, stats);
 
-setInterval(() => snapshot.tick(), 1000 / SERVER_CONFIG.SNAPSHOT_HZ);
+let snapshotRunning = true;
+function snapshotLoop() {
+  if (!snapshotRunning) return;
+  const start = Date.now();
+  snapshot.tick();
+  const elapsed = Date.now() - start;
+  const interval = 1000 / SERVER_CONFIG.SNAPSHOT_HZ;
+  const delay = Math.max(0, interval - elapsed);
+  setTimeout(snapshotLoop, delay);
+}
+snapshotLoop();
+
 setInterval(() => roomManager.checkTimeouts(), SERVER_CONFIG.CLEANUP_INTERVAL_MS);
 
 log('server', `ws listening on :${SERVER_CONFIG.PORT}`);
+
+process.on('SIGINT', () => {
+  log('SHUTDOWN', 'closing...');
+  snapshotRunning = false;
+  for (const room of roomManager.rooms.values()) {
+    for (const p of room.players.values()) {
+      try { p.ws.close(); } catch {}
+    }
+  }
+  wss.close(() => process.exit(0));
+});

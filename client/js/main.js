@@ -19,7 +19,7 @@ import { DeathScreen } from './ui/deathScreen.js';
 import { DroneSelectMenu } from './ui/droneSelectMenu.js';
 import { TeamSelectMenu } from './ui/teamSelectMenu.js';
 import { setupNetworkHandlers } from './ui/disconnectHandler.js';
-import { placeMap } from './world/mapLoader.js';
+import { placeMap, mergeByMaterial } from './world/mapLoader.js';
 import { buildCollision } from './world/collisionLoader.js';
 import { CollisionWorld } from './world/collisionWorld.js';
 import { ExplosionFX } from './fx/explosion.js';
@@ -69,7 +69,6 @@ const els = {
   btnExit: document.getElementById('btn-drone-exit'),
   sideButtons: document.getElementById('side-buttons'),
   btnDrones: document.getElementById('btn-drones'),
-  btnCars: document.getElementById('btn-cars'),
   btnPos: document.getElementById('btn-pos'),
   playerControls: sensitivity,
   droneControls: sensitivity,
@@ -92,11 +91,11 @@ const loadingPct = document.getElementById('loading-pct');
 const loadingFill = document.getElementById('loading-fill');
 const loadingStatus = document.getElementById('loading-status');
 
-const camOffsetVec = new THREE.Vector3();
 const camTargetPos = new THREE.Vector3();
 const camTiltQuat = new THREE.Quaternion();
 const camTiltAxis = new THREE.Vector3(1, 0, 0);
 const camForward = new THREE.Vector3();
+const camEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 function setLoading(pct, status) {
   loadingPct.textContent = Math.round(pct * 100);
@@ -114,6 +113,7 @@ async function bootstrap() {
 
   setLoading(0.85, 'размещение карты');
   GameState.mapRootRef = placeMap(sceneMgr.scene, gltfs['map.glb']);
+  mergeByMaterial(GameState.mapRootRef);
 
   setLoading(0.9, 'построение коллизий');
   GameState.collisionRootRef = buildCollision(gltfs['collision.glb']);
@@ -198,7 +198,10 @@ socket.on('welcome', (msg) => {
 });
 
 socket.on('players', (msg) => stateManager.syncWithPlayerList(msg.list));
-socket.on('leave', (msg) => stateManager.removePlayer(msg.id));
+socket.on('leave', (msg) => {
+  stateManager.removePlayer(msg.id);
+  delete GameState.remoteTeams[msg.id];
+});
 socket.on('binary', (type, payload) => stateManager.handleBinary(type, payload, GameState.allGltfs));
 socket.on('validation_fail', (msg) => console.warn('[main] server rejected:', msg.reason));
 
@@ -206,6 +209,11 @@ socket.on('team_choice', (msg) => {
   if (GameState.myTeam) return;
   const t = msg.teams || { red: 0, blue: 0 };
   teamSelect.show(t);
+});
+
+socket.on('team_counts', (msg) => {
+  if (!teamSelect.isOpen) return;
+  teamSelect.setCounts(msg.red || 0, msg.blue || 0);
 });
 
 teamSelect.onChoose = (team) => {
@@ -296,13 +304,20 @@ menu.onPlay = () => {
   socket.connect('p_' + Math.floor(Math.random() * 10000));
 };
 
+const _origMenuShow = menu.show.bind(menu);
+menu.show = () => {
+  _origMenuShow();
+  if (socket.connected) {
+    socket.sendJSON({ type: 'request_room_state' });
+  }
+};
+
 deathScreen.onRespawn = () => {
-  const spawn = GameState.mySpawn || CFG.PLAYER_SPAWN;
+  const spawn = GameState.mySpawn || CFG.TEAM_SPAWN_RED;
   respawnAll(els, spawn);
 };
 
 els.btnDrones.addEventListener('pointerdown', (e) => { e.preventDefault(); droneSelect.toggle(); });
-els.btnCars.addEventListener('pointerdown', (e) => e.preventDefault());
 els.btnEnter.addEventListener('pointerdown', (e) => { e.preventDefault(); enterDrone(els); });
 els.btnExit.addEventListener('pointerdown', (e) => { e.preventDefault(); exitDrone(els); });
 els.btnPos.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); posProbe(els); });
@@ -310,6 +325,9 @@ els.btnPos.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPr
 let netAcc = 0;
 const netBuf = new ArrayBuffer(DRONE_STATE_SIZE);
 let camInitialized = false;
+
+let prevStickYaw = 0;
+let stickYawRate = 0;
 
 const loop = new FixedLoop({
   renderer: sceneMgr.renderer,
@@ -324,16 +342,32 @@ const loop = new FixedLoop({
       const canEnter = distToPad() < CFG.PAD_RADIUS + 2.0 && gs.localPlayer.alive;
       els.btnEnter.style.display = canEnter ? 'block' : 'none';
       camInitialized = false;
+      prevStickYaw = 0;
+      stickYawRate = 0;
     } else {
       const stick = sensitivity.getDroneInput();
       const ph = gs.localDrone.physics;
-      let dYaw = stick.yaw - ph.yaw;
-      while (dYaw > Math.PI) dYaw -= 2 * Math.PI;
-      while (dYaw < -Math.PI) dYaw += 2 * Math.PI;
-      if (!isFinite(dYaw)) dYaw = 0;
+
+      let delta = stick.yaw - prevStickYaw;
+      while (delta > Math.PI) delta -= 2 * Math.PI;
+      while (delta < -Math.PI) delta += 2 * Math.PI;
+
+      prevStickYaw = stick.yaw;
+
+      const rateK = 1 - Math.exp(-CFG.FPV_STICK_SMOOTH * dt);
+      stickYawRate += (delta / Math.max(dt, 1e-4) - stickYawRate) * rateK;
+
+      const yawInput = Math.max(-1, Math.min(1, stickYawRate / CFG.FPV_STICK_RATE_SCALE));
+
       const safePitch = isFinite(stick.pitch) ? stick.pitch : 0;
       const safeThr = isFinite(stick.throttle) ? stick.throttle : 0;
-      gs.localDrone.update(dt, { throttle: safeThr, yaw: dYaw, pitch: safePitch }, gs.collisionWorld);
+
+      gs.localDrone.update(dt, {
+        throttle: safeThr,
+        yaw: yawInput,
+        pitch: safePitch,
+      }, gs.collisionWorld);
+
       processCrash(els);
     }
 
@@ -406,7 +440,16 @@ const loop = new FixedLoop({
       } else {
         const p = gs.localDrone.group.position;
         const q = gs.localDrone.group.quaternion;
-        camForward.set(0, CFG.FPV_NOSE_UP, CFG.FPV_NOSE_FORWARD).applyQuaternion(q);
+        const ph = gs.localDrone.physics;
+
+        const droneSize = gs.localDrone.targetSize || 10.0;
+        const halfSize = droneSize * 0.5;
+
+        camForward.set(
+          0,
+          halfSize * CFG.FPV_NOSE_UP,
+          halfSize * CFG.FPV_NOSE_FORWARD * CFG.FPV_FORWARD_SIGN + CFG.FPV_FORWARD_EXTRA * CFG.FPV_FORWARD_SIGN
+        ).applyQuaternion(q);
 
         camTargetPos.set(
           p.x + camForward.x,
@@ -414,32 +457,30 @@ const loop = new FixedLoop({
           p.z + camForward.z
         );
 
+        camEuler.set(ph.pitchAngle, ph.yaw, 0, 'YXZ');
+        camMgr.camera.quaternion.setFromEuler(camEuler);
+
+        camTiltQuat.setFromAxisAngle(camTiltAxis, camMgr.camTilt);
+        camMgr.camera.quaternion.multiply(camTiltQuat);
+
         if (!camInitialized) {
           camMgr.camera.position.copy(camTargetPos);
-          camMgr.camera.quaternion.copy(q);
-          camTiltQuat.setFromAxisAngle(camTiltAxis, camMgr.camTilt);
-          camMgr.camera.quaternion.multiply(camTiltQuat);
-          camMgr.camera.fov = 75;
+          camMgr.camera.fov = CFG.FPV_FOV_BASE;
           camMgr.camera.updateProjectionMatrix();
           camInitialized = true;
         } else {
-          const posK = 1 - Math.exp(-28 * dt);
+          const posK = 1 - Math.exp(-CFG.FPV_POS_SMOOTH * dt);
           camMgr.camera.position.lerp(camTargetPos, posK);
 
-          const rotK = 1 - Math.exp(-22 * dt);
-          camMgr.camera.quaternion.slerp(q, rotK);
-          camTiltQuat.setFromAxisAngle(camTiltAxis, camMgr.camTilt);
-          camMgr.camera.quaternion.multiply(camTiltQuat);
-
-          const speed = gs.localDrone.physics.getSpeed();
-          const targetFov = 75 + Math.min(speed * 0.35, 20);
+          const speed = ph.getSpeed();
+          const targetFov = CFG.FPV_FOV_BASE + Math.min(speed * CFG.FPV_FOV_SPEED_GAIN, CFG.FPV_FOV_SPEED_MAX);
           camMgr.camera.fov += (targetFov - camMgr.camera.fov) * Math.min(1, dt * 5);
           camMgr.camera.updateProjectionMatrix();
 
-          const rpmNorm = gs.localDrone.physics.rpm / 26000;
-          const shakeAmp = 0.0008 * rpmNorm;
-          if (shakeAmp > 0) {
-            const t = performance.now() * 0.001;
+          const rpmNorm = ph.rpm / 26000;
+          const shakeAmp = CFG.FPV_SHAKE_AMP * rpmNorm;
+          if (shakeAmp > CFG.FPV_SHAKE_MIN) {
+            const t = (ph._simTime || 0) + ph._noiseSeed;
             camMgr.camera.rotateX(Math.sin(t * 47) * shakeAmp);
             camMgr.camera.rotateY(Math.sin(t * 53) * shakeAmp);
           }

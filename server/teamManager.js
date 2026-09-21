@@ -27,6 +27,8 @@ export function handleChooseTeam(ws, player, room, msg) {
   }
 
   player.team = requested;
+  room.markDirty();
+
   const spawn = requested === 'red' ? room.spawnRed : room.spawnBlue;
 
   sendJSON(ws, { type: 'team_assigned', team: requested, spawn });
@@ -34,5 +36,7 @@ export function handleChooseTeam(ws, player, room, msg) {
   room.broadcastJSON(room.playerListPayload());
 
   const c = room.teamCounts();
+  room.broadcastJSON({ type: 'team_counts', red: c.red, blue: c.blue });
+
   log('TEAM', `P${player.id} → ${requested} (${c.red}/${c.blue})`);
 }

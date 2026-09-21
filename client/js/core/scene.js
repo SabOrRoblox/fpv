@@ -3,12 +3,16 @@ import * as THREE from 'three';
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 function detectLowEnd(canvas) {
+  const cores = navigator.hardwareConcurrency || 4;
+  const mem = navigator.deviceMemory || 4;
+  if (cores <= 4 || mem <= 2) return true;
+
   try {
     const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
     if (!gl) return true;
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
-    const renderer = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
-    return /Mali-G5|Mali-G7|Mali-T|Adreno 5|Adreno 6|PowerVR|SGX/i.test(renderer);
+    const renderer = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+    return /Adreno [1-5]\d\d|Mali-T[0-9]|Mali-4|Mali-G[1-3][0-9]|PowerVR|SGX|VideoCore/i.test(renderer);
   } catch {
     return false;
   }

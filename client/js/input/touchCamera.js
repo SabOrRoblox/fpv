@@ -6,8 +6,8 @@ export class TouchCamera {
     this.minDistance = opts.minDistance || 4;
     this.maxDistance = opts.maxDistance || 20;
 
-    this.sensitivityYaw = opts.sensitivityYaw || 0.012;
-    this.sensitivityPitch = opts.sensitivityPitch || 0.012;
+    this.sensitivityYaw = opts.sensitivityYaw || 0.014;
+    this.sensitivityPitch = opts.sensitivityPitch || 0.014;
     this.smooth = opts.smooth || 35.0;
 
     this.minPitch = opts.minPitch !== undefined ? opts.minPitch : -1.2;
@@ -73,11 +73,8 @@ export class TouchCamera {
     p.moved = true;
 
     if (this._pointers.size === 1) {
-      const speed = Math.sqrt(dx * dx + dy * dy);
-      const accel = 1 + Math.min(speed * 0.08, 1.5);
-
-      this._targetYaw -= dx * this.sensitivityYaw * accel;
-      this._targetPitch -= dy * this.sensitivityPitch * accel;
+      this._targetYaw -= dx * this.sensitivityYaw;
+      this._targetPitch -= dy * this.sensitivityPitch;
       this._targetPitch = Math.max(this.minPitch, Math.min(this.maxPitch, this._targetPitch));
     } else if (this._pointers.size === 2) {
       const dist = this._pinchDistance();

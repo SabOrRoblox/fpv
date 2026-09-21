@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 const MAX_BUFFER = 60;
 const BUFFER_TIMEOUT = 1.2;
 
@@ -9,8 +7,6 @@ export class InterpolationBuffer {
     this.extrapMax = opts.extrapMax ?? 0.20;
     this.buffer = [];
     this.hasData = false;
-    this._lastWasExtrap = false;
-    this._extrapFade = 1.0;
   }
 
   push(t, data) {
@@ -33,10 +29,6 @@ export class InterpolationBuffer {
       }
     }
     return null;
-  }
-
-  get renderTime() {
-    return performance.now() / 1000 - this.delay;
   }
 }
 
@@ -65,19 +57,5 @@ export function extrapolateVec3(out, prev, last, span, extraT, extrapMax) {
   out.x = last.x + (last.x - prev.x) * k;
   out.y = last.y + (last.y - prev.y) * k;
   out.z = last.z + (last.z - prev.z) * k;
-  return out;
-}
-
-export function smoothLerpVec3(out, target, dt, stiffness) {
-  const k = 1 - Math.exp(-stiffness * dt);
-  out.x += (target.x - out.x) * k;
-  out.y += (target.y - out.y) * k;
-  out.z += (target.z - out.z) * k;
-  return out;
-}
-
-export function smoothSlerpQuat(out, target, dt, stiffness) {
-  const k = 1 - Math.exp(-stiffness * dt);
-  out.slerp(target, k);
   return out;
 }

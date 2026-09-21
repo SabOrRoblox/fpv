@@ -7,10 +7,12 @@ export function createSnapshotModule(roomManager, stats) {
       const drones = [];
 
       for (const p of room.players.values()) {
-        if (p.hasPlayerState) {
+        if (p.mode === 'walk') {
           players.push({
             id: p.id,
-            x: p.x, y: p.y, z: p.z,
+            x: p.hasPlayerState ? p.x : 0,
+            y: p.hasPlayerState ? p.y : 0,
+            z: p.hasPlayerState ? p.z : 0,
             yaw: p.yaw,
             hp: p.hp,
             alive: p.alive,

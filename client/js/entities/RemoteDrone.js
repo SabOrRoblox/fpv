@@ -3,12 +3,7 @@ import { CFG } from '../../../shared/config/config.js';
 import { PropellerAnimator } from '../render/propellerAnimator.js';
 import {
   InterpolationBuffer, catmullVec3, extrapolateVec3,
-  smoothLerpVec3, smoothSlerpQuat,
 } from '../net/interpolationBuffer.js';
-
-const POS_STIFFNESS = 32;
-const ROT_STIFFNESS = 40;
-const CATCHUP_STIFFNESS = 24;
 
 export class RemoteDrone {
   constructor(id, scene, gltf) {
@@ -17,6 +12,7 @@ export class RemoteDrone {
     this.group = new THREE.Group();
     this.props = null;
     this.rpm = 0;
+    this.droneId = 'dron1';
 
     if (gltf && gltf.scene) {
       const model = gltf.scene.clone(true);
@@ -88,8 +84,9 @@ export class RemoteDrone {
         this.renderQuat.copy(this._targetQuat);
         this._justAppeared = false;
       } else {
-        smoothLerpVec3(this.renderPos, this._targetPos, dt, POS_STIFFNESS);
-        smoothSlerpQuat(this.renderQuat, this._targetQuat, dt, ROT_STIFFNESS);
+        const k = 1 - Math.exp(-30 * dt);
+        this.renderPos.lerp(this._targetPos, k);
+        this.renderQuat.slerp(this._targetQuat, k);
       }
       this._apply();
       return;
@@ -104,6 +101,15 @@ export class RemoteDrone {
       if (renderTime < first.t) {
         this._targetPos.set(first.x, first.y, first.z);
         this._targetQuat.set(first.qx, first.qy, first.qz, first.qw);
+        const k = 1 - Math.exp(-20 * dt);
+        if (this._justAppeared) {
+          this.renderPos.copy(this._targetPos);
+          this.renderQuat.copy(this._targetQuat);
+          this._justAppeared = false;
+        } else {
+          this.renderPos.lerp(this._targetPos, k);
+          this.renderQuat.slerp(this._targetQuat, k);
+        }
       } else {
         const prev = buf[Math.max(0, buf.length - 2)];
         const span = Math.max(last.t - prev.t, 1e-4);
@@ -113,24 +119,20 @@ export class RemoteDrone {
         this._v1.set(last.x, last.y, last.z);
         extrapolateVec3(this._targetPos, this._v0, this._v1, span, extraT, this.interp.extrapMax);
         this._targetQuat.set(last.qx, last.qy, last.qz, last.qw);
-        this._lastWasExtrap = true;
-      }
 
-      if (this._justAppeared) {
-        this.renderPos.copy(this._targetPos);
-        this.renderQuat.copy(this._targetQuat);
-        this._justAppeared = false;
-      } else {
-        const stiffness = this._lastWasExtrap ? CATCHUP_STIFFNESS : POS_STIFFNESS;
-        smoothLerpVec3(this.renderPos, this._targetPos, dt, stiffness);
-        smoothSlerpQuat(this.renderQuat, this._targetQuat, dt, ROT_STIFFNESS);
+        if (this._justAppeared) {
+          this.renderPos.copy(this._targetPos);
+          this.renderQuat.copy(this._targetQuat);
+          this._justAppeared = false;
+        } else {
+          const k = 1 - Math.exp(-25 * dt);
+          this.renderPos.lerp(this._targetPos, k);
+          this.renderQuat.slerp(this._targetQuat, k);
+        }
       }
-
       this._apply();
       return;
     }
-
-    this._lastWasExtrap = false;
 
     const { a, b, index } = pair;
     const span = Math.max(b.t - a.t, 1e-4);
@@ -144,22 +146,14 @@ export class RemoteDrone {
     this._v2.set(b.x, b.y, b.z);
     this._v3.set(b2.x, b2.y, b2.z);
 
-    catmullVec3(this._targetPos, this._v0, this._v1, this._v2, this._v3, alpha);
+    catmullVec3(this.renderPos, this._v0, this._v1, this._v2, this._v3, alpha);
 
     this._qa.set(a.qx, a.qy, a.qz, a.qw);
     this._qb.set(b.qx, b.qy, b.qz, b.qw);
     this._qa.slerp(this._qb, alpha);
-    this._targetQuat.copy(this._qa);
+    this.renderQuat.copy(this._qa);
 
-    if (this._justAppeared) {
-      this.renderPos.copy(this._targetPos);
-      this.renderQuat.copy(this._targetQuat);
-      this._justAppeared = false;
-    } else {
-      smoothLerpVec3(this.renderPos, this._targetPos, dt, POS_STIFFNESS);
-      smoothSlerpQuat(this.renderQuat, this._targetQuat, dt, ROT_STIFFNESS);
-    }
-
+    this._justAppeared = false;
     this._apply();
   }
 

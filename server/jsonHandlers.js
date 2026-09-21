@@ -5,10 +5,19 @@ function sendJSON(ws, obj) {
   if (ws.readyState === 1) ws.send(JSON.stringify(obj));
 }
 
-export function handleJSON(ws, player, room, msg, stats) {
+export function handleJSON(ws, player, room, msg, stats, roomManager) {
   switch (msg.type) {
     case 'ping':
       sendJSON(ws, { type: 'pong', ts: msg.ts });
+      return;
+    case 'request_room_state':
+      if (roomManager) {
+        sendJSON(ws, {
+          type: 'room_state',
+          rooms: roomManager.roomsState(),
+          total: roomManager.totalPlayers(),
+        });
+      }
       return;
     case 'choose_team':
       handleChooseTeam(ws, player, room, msg);

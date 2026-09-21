@@ -14,7 +14,11 @@ export class CollisionWorld {
     this._ready = false;
     this._invMat = new THREE.Matrix4();
     this._localTarget = new THREE.Vector3();
-    this._closest = new THREE.Vector3();
+    this._localClosest = new THREE.Vector3();
+    this._localNormal = new THREE.Vector3();
+    this._worldNormal = new THREE.Vector3();
+    this._targetCopy = new THREE.Vector3();
+    this._closestPoint = new THREE.Vector3();
     this._tmpVec = new THREE.Vector3();
   }
 
@@ -173,33 +177,34 @@ export class CollisionWorld {
     try {
       const invMat = this._invMat.copy(mesh.matrixWorld).invert();
       const target = this._localTarget.set(pos.x, pos.y, pos.z).applyMatrix4(invMat);
-      const local = target.clone();
-      const geometry = mesh.geometry;
 
-      let closest = null;
+      this._targetCopy.copy(target);
+
+      const closest = this._localClosest;
+      const closestPoint = this._closestPoint;
+      let found = false;
       let closestDistSq = Infinity;
-      const closestPoint = this._closest;
-      const targetCopy = target.clone();
+      const targetCopy = this._targetCopy;
 
-      geometry.boundsTree.shapecast({
+      mesh.geometry.boundsTree.shapecast({
         intersectsBounds: (box) => box.distanceToPoint(targetCopy) <= radius,
         intersectsTriangle: (tri) => {
           tri.closestPointToPoint(targetCopy, closestPoint);
           const d = closestPoint.distanceToSquared(targetCopy);
           if (d < closestDistSq) {
             closestDistSq = d;
-            if (!closest) closest = new THREE.Vector3();
             closest.copy(closestPoint);
+            found = true;
           }
         },
       });
 
-      if (!closest) return null;
+      if (!found) return null;
       if (closestDistSq >= radiusSq) return null;
 
-      const localNormal = local.sub(closest).normalize();
+      const localNormal = this._localNormal.copy(target).sub(closest).normalize();
       const push = radius - Math.sqrt(closestDistSq);
-      const worldNormal = localNormal.transformDirection(mesh.matrixWorld);
+      const worldNormal = this._worldNormal.copy(localNormal).transformDirection(mesh.matrixWorld);
 
       return {
         nx: worldNormal.x,

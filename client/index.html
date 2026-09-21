@@ -82,6 +82,8 @@
       <div class="hud-hp-text"><span id="hud-hp">100</span></div>
     </div>
 
+    <div id="hud-fps" class="hud-chip hud-chip-fps">FPS --</div>
+
     <div id="drone-hud-parts" style="display:none;">
       <div class="hud-tl">
         <div class="hud-metric"><span class="hud-l">ALT</span><span class="hud-v" id="hud-alt">0</span><span class="hud-u">m</span></div>
@@ -90,7 +92,6 @@
 
       <div class="hud-tr">
         <div class="hud-metric right"><span class="hud-l">BAT</span><span class="hud-v" id="hud-bat">100</span><span class="hud-u">%</span></div>
-        <div class="hud-metric right"><span class="hud-l">PING</span><span class="hud-v" id="hud-ping">-</span><span class="hud-u">ms</span></div>
       </div>
 
       <div class="gauge tacho-gauge">
@@ -139,7 +140,6 @@
 
   <div id="side-buttons" style="display:none;">
     <button id="btn-drones" class="side-btn">ДРОНЫ</button>
-    <button id="btn-cars" class="side-btn disabled" disabled>МАШИНЫ</button>
     <button id="btn-pos" class="side-btn side-btn-pos">POS</button>
   </div>
 
@@ -158,7 +158,7 @@
     </div>
   </div>
 
-  <div id="error-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.95);color:#e86c6c;font-family:ui-monospace,monospace;font-size:12px;padding:20px;z-index:9999;overflow:auto;display:none;">
+  <div id="error-overlay" class="hidden">
     <div id="error-text"></div>
   </div>
 

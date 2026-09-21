@@ -9,7 +9,7 @@ export const MSG = {
 export const PLAYER_STATE_SIZE = 22;
 export const DRONE_STATE_SIZE = 28;
 export const EVENT_CRASH_SIZE = 12;
-export const EVENT_HIT_SIZE = 12;
+export const EVENT_HIT_SIZE = 8;
 
 export const DRONE_IDS = ['dron1', 'dron2', 'dron3', 'dron4'];
 

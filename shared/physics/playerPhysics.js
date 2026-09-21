@@ -1,3 +1,4 @@
+import { CFG } from '../config/config.js';
 
 export class PlayerPhysics {
   constructor() {
@@ -57,7 +58,7 @@ export class PlayerPhysics {
 
   isInRadius(centerPos, radius) {
     const dx = this.position.x - centerPos.x;
-    const dy = (this.position.y + 0.9) - centerPos.y;
+    const dy = (this.position.y + CFG.PLAYER_HEAD_HEIGHT) - centerPos.y;
     const dz = this.position.z - centerPos.z;
     return dx * dx + dy * dy + dz * dz <= radius * radius;
   }

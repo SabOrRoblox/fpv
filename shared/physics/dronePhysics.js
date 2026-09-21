@@ -31,7 +31,13 @@ export class DronePhysics {
     this._yawRate = 0;
     this._noiseSeed = Math.random() * 1000;
     this._rpmNoise = 0;
+    this._simTime = 0;
+    this._turbPitch = 0;
+    this._turbRoll = 0;
   }
+
+  get pitchAngle() { return this._pitchAngle; }
+  get rollAngle() { return this._rollAngle; }
 
   setParams(params) {
     this.params = { ...this.cfg.DEFAULT_DRONE_PARAMS, ...(params || {}) };
@@ -56,6 +62,9 @@ export class DronePhysics {
     this._smoothedPitch = 0;
     this._yawRate = 0;
     this._rpmNoise = 0;
+    this._simTime = 0;
+    this._turbPitch = 0;
+    this._turbRoll = 0;
     this._setQuat();
 
     v3set(this.prevPosition, pos.x, pos.y, pos.z);
@@ -76,6 +85,8 @@ export class DronePhysics {
     this.prevQuat.y = this.quaternion.y;
     this.prevQuat.z = this.quaternion.z;
     this.prevQuat.w = this.quaternion.w;
+
+    this._simTime += dt;
 
     const active = this.armed && !this.crashed && this.piloted;
     const p = this.params;
@@ -173,9 +184,17 @@ export class DronePhysics {
 
     const turb = p.TURBULENCE || 0;
     if (active && turb > 0) {
-      const t = performance.now() * 0.001 + this._noiseSeed;
-      this._pitchAngle += Math.sin(t * 6.1) * turb * 0.5;
-      this._rollAngle += Math.sin(t * 5.3) * turb * 0.7;
+      const t = this._simTime + this._noiseSeed;
+      const rawPitch = Math.sin(t * 6.1) * turb * 0.5;
+      const rawRoll = Math.sin(t * 5.3) * turb * 0.7;
+      const turbK = 1 - Math.exp(-4 * dt);
+      this._turbPitch += (rawPitch - this._turbPitch) * turbK;
+      this._turbRoll += (rawRoll - this._turbRoll) * turbK;
+      this._pitchAngle += this._turbPitch;
+      this._rollAngle += this._turbRoll;
+    } else {
+      this._turbPitch *= Math.exp(-4 * dt);
+      this._turbRoll *= Math.exp(-4 * dt);
     }
 
     if (!isFinite(this.yaw)) this.yaw = 0;
@@ -188,20 +207,22 @@ export class DronePhysics {
   _motor(dt, thr, active) {
     const p = this.params;
     const maxRpm = p.MAX_RPM || 26000;
+    const motorTau = p.MOTOR_TAU ?? 0.035;
 
     let target = active ? thr * maxRpm : 0;
 
     if (active) {
-      const t = performance.now() * 0.001 + this._noiseSeed;
+      const t = this._simTime + this._noiseSeed;
 
       const noise = (
-        Math.sin(t * 17.3) * 0.035 +
-        Math.sin(t * 23.7) * 0.025 +
-        Math.sin(t * 41.1) * 0.015 +
-        Math.sin(t * 67.3) * 0.010
+        Math.sin(t * 17.3) * 0.020 +
+        Math.sin(t * 11.7) * 0.012 +
+        Math.sin(t * 25.1) * 0.008
       ) * maxRpm;
 
-      this._rpmNoise += (noise - this._rpmNoise) * 0.35;
+      const noiseK = 1 - Math.exp(-14 * dt);
+      this._rpmNoise += (noise - this._rpmNoise) * noiseK;
+
       target += this._rpmNoise;
 
       const vy = this.velocity.y;
@@ -221,7 +242,7 @@ export class DronePhysics {
       }
     }
 
-    const tau = active ? (p.MOTOR_TAU || 0.08) : (p.MOTOR_TAU || 0.08) + (p.MOTOR_DECAY || 0.25);
+    const tau = active ? motorTau : motorTau + (p.MOTOR_DECAY || 0.18);
     const k = Math.min(dt / Math.max(tau, 1e-4), 1);
 
     this.rpm = clamp(this.rpm + (target - this.rpm) * k, 0, maxRpm);
@@ -237,8 +258,8 @@ export class DronePhysics {
     const cy = Math.cos(yaw * 0.5), sy = Math.sin(yaw * 0.5);
     const cr = Math.cos(roll * 0.5), sr = Math.sin(roll * 0.5);
 
-    this.quaternion.x = sp * cy * cr + cp * sy * sr;
-    this.quaternion.y = sy * cp * cr - cy * sp * sr;
+    this.quaternion.x = sp * cy * cr - cp * sy * sr;
+    this.quaternion.y = cp * sy * cr + sp * cy * sr;
     this.quaternion.z = cy * cp * sr - sy * sp * cr;
     this.quaternion.w = cy * cp * cr + sy * sp * sr;
 
@@ -267,7 +288,7 @@ export class DronePhysics {
 
     const turb = p.TURBULENCE || 0;
     if (this.piloted && turb > 0) {
-      const t = performance.now() * 0.001 + this._noiseSeed;
+      const t = this._simTime + this._noiseSeed;
       this.velocity.x += Math.sin(t * 3.1) * turb * 0.3 * dt;
       this.velocity.z += Math.sin(t * 4.7) * turb * 0.3 * dt;
     }

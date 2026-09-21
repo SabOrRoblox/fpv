@@ -30,6 +30,8 @@ export class Room {
     return r;
   }
 
+  markDirty() { this._cacheDirty = true; }
+
   teamCounts() {
     let red = 0, blue = 0;
     for (const p of this.players.values()) {

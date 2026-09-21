@@ -31,13 +31,17 @@ export class FixedLoop {
     this.lastTime = now;
     if (frameDt > this.maxFrameDt) frameDt = this.maxFrameDt;
     this.accumulator += frameDt;
+
     let steps = 0;
     while (this.accumulator >= this.physDt && steps < this.maxSteps) {
       this.onFixedUpdate(this.physDt);
       this.accumulator -= this.physDt;
       steps++;
     }
-    if (steps >= this.maxSteps) this.accumulator = 0;
+
+    const maxAcc = this.maxSteps * this.physDt * 2;
+    if (this.accumulator > maxAcc) this.accumulator = maxAcc;
+
     this.alpha = this.accumulator / this.physDt;
     this.onRender(frameDt, this.alpha);
   };

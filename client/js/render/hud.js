@@ -5,11 +5,12 @@ export class Hud {
     this.altEl = document.getElementById('hud-alt');
     this.vsiEl = document.getElementById('hud-vsi');
     this.batEl = document.getElementById('hud-bat');
-    this.pingEl = document.getElementById('hud-ping');
     this.rpmEl = document.getElementById('hud-rpm');
     this.hintEl = document.getElementById('hud-hint');
     this.hpFill = document.getElementById('hud-hp-fill');
     this.hpText = document.getElementById('hud-hp');
+    this.fpsEl = document.getElementById('hud-fps');
+    this.pingEl = document.getElementById('hud-ping');
 
     this.droneHud = document.getElementById('drone-hud-parts');
     this.speedoCanvas = document.getElementById('speedo');
@@ -18,6 +19,9 @@ export class Hud {
     this._acc = 0;
     this._lastSpeed = 0;
     this._lastRpm = 0;
+
+    this._fpsFrames = 0;
+    this._fpsAcc = 0;
 
     this.refreshCanvas();
   }
@@ -63,6 +67,21 @@ export class Hud {
   }
 
   update(dt, data) {
+    this._fpsFrames++;
+    this._fpsAcc += dt;
+    if (this._fpsAcc >= 0.5) {
+      const fps = Math.round(this._fpsFrames / this._fpsAcc);
+      this._fpsFrames = 0;
+      this._fpsAcc = 0;
+      if (this.fpsEl) this.fpsEl.textContent = 'FPS ' + fps;
+    }
+
+    if (this.pingEl) {
+      const p = data.ping;
+      const val = (p && p > 0) ? Math.round(p) : '--';
+      this.pingEl.textContent = 'PING ' + val;
+    }
+
     this._acc += dt;
     if (this._acc < 0.05) return;
     this._acc = 0;
@@ -87,12 +106,11 @@ export class Hud {
     if (!isFinite(this._lastRpm)) this._lastRpm = 0;
 
     if (data.isDrone) {
-      this.speedEl.textContent = this._lastSpeed.toFixed(0);
-      this.altEl.textContent = alt.toFixed(1);
-      this.vsiEl.textContent = vsi.toFixed(1);
-      this.batEl.textContent = ((data.battery || 100) | 0);
-      this.pingEl.textContent = data.ping > 0 ? data.ping.toFixed(0) : '-';
-      this.rpmEl.textContent = Math.round(rpm);
+      if (this.speedEl) this.speedEl.textContent = this._lastSpeed.toFixed(0);
+      if (this.altEl) this.altEl.textContent = alt.toFixed(1);
+      if (this.vsiEl) this.vsiEl.textContent = vsi.toFixed(1);
+      if (this.batEl) this.batEl.textContent = ((data.battery || 100) | 0);
+      if (this.rpmEl) this.rpmEl.textContent = Math.round(rpm);
 
       this._drawGauge(this.speedoCanvas, this._lastSpeed, 200, false);
       this._drawGauge(this.tachoCanvas, this._lastRpm, 1, true);

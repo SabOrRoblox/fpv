@@ -5,7 +5,7 @@ export class ConnectionBadge {
     this.el.style.cssText = `
       position: fixed;
       top: 12px;
-      right: 12px;
+      left: 12px;
       display: flex;
       align-items: center;
       gap: 6px;

@@ -2,12 +2,7 @@ import * as THREE from 'three';
 import { CFG } from '../../../shared/config/config.js';
 import {
   InterpolationBuffer, catmullVec3, extrapolateVec3,
-  smoothLerpVec3,
 } from '../net/interpolationBuffer.js';
-
-const POS_STIFFNESS = 30;
-const CATCHUP_STIFFNESS = 22;
-const YAW_STIFFNESS = 26;
 
 export class RemotePlayer {
   constructor(id, scene, gltf) {
@@ -200,8 +195,9 @@ export class RemotePlayer {
         this.renderYaw = this._targetYaw;
         this._justAppeared = false;
       } else {
-        smoothLerpVec3(this.renderPos, this._targetPos, dt, POS_STIFFNESS);
-        this.renderYaw = this._smoothAngle(this.renderYaw, this._targetYaw, dt, YAW_STIFFNESS);
+        const k = 1 - Math.exp(-30 * dt);
+        this.renderPos.lerp(this._targetPos, k);
+        this.renderYaw = this._smoothAngle(this.renderYaw, this._targetYaw, dt, 26);
       }
       this._apply();
       return;
@@ -216,6 +212,15 @@ export class RemotePlayer {
       if (renderTime < first.t) {
         this._targetPos.set(first.x, first.y, first.z);
         this._targetYaw = first.yaw;
+        const k = 1 - Math.exp(-20 * dt);
+        if (this._justAppeared) {
+          this.renderPos.copy(this._targetPos);
+          this.renderYaw = this._targetYaw;
+          this._justAppeared = false;
+        } else {
+          this.renderPos.lerp(this._targetPos, k);
+          this.renderYaw = this._smoothAngle(this.renderYaw, this._targetYaw, dt, 26);
+        }
       } else {
         const prev = buf[Math.max(0, buf.length - 2)];
         const span = Math.max(lastB.t - prev.t, 1e-4);
@@ -225,24 +230,20 @@ export class RemotePlayer {
         this._v1.set(lastB.x, lastB.y, lastB.z);
         extrapolateVec3(this._targetPos, this._v0, this._v1, span, extraT, this.interp.extrapMax);
         this._targetYaw = lastB.yaw;
-        this._lastWasExtrap = true;
-      }
 
-      if (this._justAppeared) {
-        this.renderPos.copy(this._targetPos);
-        this.renderYaw = this._targetYaw;
-        this._justAppeared = false;
-      } else {
-        const stiffness = this._lastWasExtrap ? CATCHUP_STIFFNESS : POS_STIFFNESS;
-        smoothLerpVec3(this.renderPos, this._targetPos, dt, stiffness);
-        this.renderYaw = this._smoothAngle(this.renderYaw, this._targetYaw, dt, YAW_STIFFNESS);
+        if (this._justAppeared) {
+          this.renderPos.copy(this._targetPos);
+          this.renderYaw = this._targetYaw;
+          this._justAppeared = false;
+        } else {
+          const k = 1 - Math.exp(-25 * dt);
+          this.renderPos.lerp(this._targetPos, k);
+          this.renderYaw = this._smoothAngle(this.renderYaw, this._targetYaw, dt, 26);
+        }
       }
-
       this._apply();
       return;
     }
-
-    this._lastWasExtrap = false;
 
     const { a, b, index } = pair;
     const span = Math.max(b.t - a.t, 1e-4);
@@ -256,22 +257,14 @@ export class RemotePlayer {
     this._v2.set(b.x, b.y, b.z);
     this._v3.set(b2.x, b2.y, b2.z);
 
-    catmullVec3(this._targetPos, this._v0, this._v1, this._v2, this._v3, alpha);
+    catmullVec3(this.renderPos, this._v0, this._v1, this._v2, this._v3, alpha);
 
     let dYaw = b.yaw - a.yaw;
     while (dYaw > Math.PI) dYaw -= 2 * Math.PI;
     while (dYaw < -Math.PI) dYaw += 2 * Math.PI;
-    this._targetYaw = a.yaw + dYaw * alpha;
+    this.renderYaw = a.yaw + dYaw * alpha;
 
-    if (this._justAppeared) {
-      this.renderPos.copy(this._targetPos);
-      this.renderYaw = this._targetYaw;
-      this._justAppeared = false;
-    } else {
-      smoothLerpVec3(this.renderPos, this._targetPos, dt, POS_STIFFNESS);
-      this.renderYaw = this._smoothAngle(this.renderYaw, this._targetYaw, dt, YAW_STIFFNESS);
-    }
-
+    this._justAppeared = false;
     this._apply();
   }
 

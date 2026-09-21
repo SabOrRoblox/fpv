@@ -18,8 +18,7 @@ export function handleStatePlayer(ws, player, payload, stats) {
     player.lastPX = s.x; player.lastPY = s.y; player.lastPZ = s.z;
     player.x = s.x; player.y = s.y; player.z = s.z;
     player.yaw = s.yaw;
-    player.hp = s.hp;
-    player.alive = s.alive;
+    player.validationFails = 0;
   } else {
     stats.fail++;
     player.validationFails++;
@@ -32,6 +31,8 @@ export function handleStatePlayer(ws, player, payload, stats) {
 }
 
 export function handleStateDrone(ws, player, payload, stats) {
+  if (player.mode !== 'fpv') return;
+
   const s = decodeDroneState(new DataView(payload), 0);
   stats.stD++;
 
@@ -42,6 +43,7 @@ export function handleStateDrone(ws, player, payload, stats) {
     player.drone.qz = s.qz; player.drone.qw = s.qw;
     player.drone.crashed = s.crashed;
     player.drone.rpm = s.rpm;
+    player.validationFails = 0;
   } else {
     stats.fail++;
     player.validationFails++;
@@ -57,7 +59,7 @@ export function handleEventCrash(player, room, rawData, payload, stats) {
   const ev = decodeEventCrash(payload);
   stats.crash++;
 
-  if (!validateCrash(player, ev.x, 0, ev.z)) {
+  if (!validateCrash(player, ev.x, player.drone.y, ev.z)) {
     stats.fail++;
     return;
   }
