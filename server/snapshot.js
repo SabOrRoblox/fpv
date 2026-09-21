@@ -1,4 +1,4 @@
-import { MSG, buildSnapshot, wrapBinary } from '../shared/net/protocol.js';
+import { MSG, buildSnapshot, wrapBinary, droneIdToIndex } from '../shared/net/protocol.js';
 
 export function createSnapshotModule(roomManager, stats) {
   function tick() {
@@ -23,6 +23,7 @@ export function createSnapshotModule(roomManager, stats) {
             qx: p.drone.qx, qy: p.drone.qy, qz: p.drone.qz, qw: p.drone.qw,
             crashed: p.drone.crashed,
             rpm: p.drone.rpm || 0,
+            droneIdx: droneIdToIndex(p.droneId),
           });
         }
       }

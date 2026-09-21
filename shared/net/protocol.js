@@ -7,9 +7,20 @@ export const MSG = {
 };
 
 export const PLAYER_STATE_SIZE = 22;
-export const DRONE_STATE_SIZE = 27;
+export const DRONE_STATE_SIZE = 28;
 export const EVENT_CRASH_SIZE = 12;
 export const EVENT_HIT_SIZE = 12;
+
+export const DRONE_IDS = ['dron1', 'dron2', 'dron3', 'dron4'];
+
+export function droneIdToIndex(id) {
+  const i = DRONE_IDS.indexOf(id);
+  return i >= 0 ? i : 0;
+}
+
+export function droneIndexToId(idx) {
+  return DRONE_IDS[idx] || 'dron1';
+}
 
 const QSCALE = 32767;
 const MAX_COUNT = 255;
@@ -59,7 +70,7 @@ export function decodePlayerState(dv, offset) {
   };
 }
 
-export function encodeDroneState(buffer, offset, id, x, y, z, qx, qy, qz, qw, crashed, rpm) {
+export function encodeDroneState(buffer, offset, id, x, y, z, qx, qy, qz, qw, crashed, rpm, droneIdx) {
   const dv = new DataView(buffer);
   dv.setUint32(offset, id | 0, true);
   dv.setFloat32(offset + 4, x, true);
@@ -71,6 +82,7 @@ export function encodeDroneState(buffer, offset, id, x, y, z, qx, qy, qz, qw, cr
   dv.setInt16(offset + 22, Math.round(clampQ(qw) * QSCALE), true);
   dv.setUint8(offset + 24, crashed ? 1 : 0);
   dv.setUint16(offset + 25, Math.max(0, Math.min(65535, rpm | 0)), true);
+  dv.setUint8(offset + 27, (droneIdx | 0) & 0xff);
 }
 
 export function decodeDroneState(dv, offset) {
@@ -89,6 +101,7 @@ export function decodeDroneState(dv, offset) {
     qx, qy, qz, qw,
     crashed: dv.getUint8(offset + 24) === 1,
     rpm: dv.getUint16(offset + 25, true),
+    droneIdx: dv.getUint8(offset + 27),
   };
 }
 
@@ -108,7 +121,7 @@ export function buildSnapshot(players, drones) {
   }
   for (let i = 0; i < dc; i++) {
     const d = drones[i];
-    encodeDroneState(buffer, offset, d.id, d.x, d.y, d.z, d.qx, d.qy, d.qz, d.qw, d.crashed, d.rpm || 0);
+    encodeDroneState(buffer, offset, d.id, d.x, d.y, d.z, d.qx, d.qy, d.qz, d.qw, d.crashed, d.rpm || 0, d.droneIdx || 0);
     offset += DRONE_STATE_SIZE;
   }
   return buffer;

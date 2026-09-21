@@ -1,9 +1,11 @@
+
+
 import * as THREE from 'three';
 import { CFG } from '../../shared/config/config.js';
 import {
   MSG, PLAYER_STATE_SIZE, DRONE_STATE_SIZE,
   encodePlayerState, encodeDroneState, wrapBinary,
-  encodeEventCrash,
+  encodeEventCrash, droneIdToIndex,
 } from '../../shared/net/protocol.js';
 import { SceneManager } from './core/scene.js';
 import { FixedLoop } from './core/loop.js';
@@ -93,6 +95,9 @@ const loadingFill = document.getElementById('loading-fill');
 const loadingStatus = document.getElementById('loading-status');
 
 const camOffsetVec = new THREE.Vector3();
+const camTargetPos = new THREE.Vector3();
+const camTiltQuat = new THREE.Quaternion();
+const camTiltAxis = new THREE.Vector3(1, 0, 0);
 
 function setLoading(pct, status) {
   loadingPct.textContent = Math.round(pct * 100);
@@ -103,7 +108,7 @@ function setLoading(pct, status) {
 async function bootstrap() {
   setLoading(0.05, 'загрузка моделей');
   const gltfs = await assets.loadAll(
-    ['map.glb', 'collision.glb', 'dron1.glb', 'dron2.glb', 'bro.glb'],
+    ['map.glb', 'collision.glb', 'dron1.glb', 'dron2.glb', 'dron3.glb', 'dron4.glb', 'bro.glb'],
     (p, name) => setLoading(0.05 + p * 0.75, 'загрузка ' + name)
   );
   GameState.allGltfs = gltfs;
@@ -188,7 +193,9 @@ socket.on('welcome', (msg) => {
   GameState.playerId = Number(msg.id) | 0;
   GameState.roomId = msg.roomId;
   stateManager.setMyId(GameState.playerId);
-  if (GameState.localDrone) GameState.localDrone.droneId = localStorage.getItem('selectedDrone') || 'dron1';
+  if (GameState.localDrone) {
+    GameState.localDrone.droneId = localStorage.getItem('selectedDrone') || 'dron1';
+  }
 });
 
 socket.on('players', (msg) => stateManager.syncWithPlayerList(msg.list));
@@ -233,6 +240,14 @@ socket.on('team_reject', (msg) => {
   teamSelect.resetSelection();
 });
 
+socket.on('drone_selected', (msg) => {
+  if (GameState.localDrone) GameState.localDrone.droneId = msg.droneId;
+});
+
+socket.on('mode', (msg) => {
+  if (stateManager.setPlayerDroneId) stateManager.setPlayerDroneId(msg.id, msg.droneId);
+});
+
 socket.on('error', (msg) => {
   if (msg.reason === 'too_far_from_pad') {
     const gs = GameState;
@@ -250,10 +265,6 @@ socket.on('error', (msg) => {
 
 socket.on('room_state', (msg) => {
   menu.setCount(msg.total, (msg.rooms || []).length * 10);
-});
-
-socket.on('drone_selected', (msg) => {
-  if (GameState.localDrone) GameState.localDrone.droneId = msg.droneId;
 });
 
 stateManager.onCrash = (ev) => {
@@ -353,7 +364,8 @@ const loop = new FixedLoop({
           encodeDroneState(netBuf, 0, gs.playerId,
             d.position.x, d.position.y, d.position.z,
             d.quaternion.x, d.quaternion.y, d.quaternion.z, d.quaternion.w,
-            d.crashed, d.rpm | 0);
+            d.crashed, d.rpm | 0,
+            droneIdToIndex(gs.localDrone.droneId));
           socket.sendBinary(wrapBinary(MSG.STATE_DRONE, netBuf));
         }
       }
@@ -395,13 +407,21 @@ const loop = new FixedLoop({
         const p = gs.localDrone.group.position;
         const q = gs.localDrone.group.quaternion;
         camOffsetVec.set(0, CFG.FPV_NOSE_UP, CFG.FPV_NOSE_FORWARD).applyQuaternion(q);
-        camMgr.camera.position.set(
+
+        camTargetPos.set(
           p.x + camOffsetVec.x,
           p.y + camOffsetVec.y,
           p.z + camOffsetVec.z
         );
-        camMgr.camera.quaternion.copy(q);
-        camMgr.camera.rotateX(camMgr.camTilt);
+
+        const posK = 1 - Math.exp(-25 * dt);
+        camMgr.camera.position.lerp(camTargetPos, posK);
+
+        const rotK = 1 - Math.exp(-18 * dt);
+        camMgr.camera.quaternion.slerp(q, rotK);
+
+        camTiltQuat.setFromAxisAngle(camTiltAxis, camMgr.camTilt);
+        camMgr.camera.quaternion.multiply(camTiltQuat);
 
         const speed = gs.localDrone.physics.getSpeed();
         const targetFov = 75 + Math.min(speed * 0.4, 25);

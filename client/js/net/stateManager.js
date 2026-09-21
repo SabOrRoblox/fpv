@@ -1,6 +1,5 @@
-
 import {
-  MSG, parseSnapshot, decodeEventCrash,
+  MSG, parseSnapshot, decodeEventCrash, droneIndexToId,
 } from '../../../shared/net/protocol.js';
 import { RemotePlayer } from '../entities/RemotePlayer.js';
 import { RemoteDrone } from '../entities/RemoteDrone.js';
@@ -40,10 +39,17 @@ export class StateManager {
       for (const d of snap.drones) {
         if (d.id === this.myId) continue;
         seenDrones.add(d.id);
+        const modelId = droneIndexToId(d.droneIdx);
+        const modelFile = modelId + '.glb';
+
         let rd = this.remoteDrones.get(d.id);
-        if (!rd) {
-          const gltf = (this.globals && this.globals['dron1.glb']) || null;
+        const needRebuild = rd && rd.droneId !== modelId;
+
+        if (!rd || needRebuild) {
+          if (rd && rd.dispose) rd.dispose(this.scene);
+          const gltf = (this.globals && this.globals[modelFile]) || null;
           rd = new RemoteDrone(d.id, this.scene, gltf);
+          rd.droneId = modelId;
           this.remoteDrones.set(d.id, rd);
         }
         rd.pushState(d);
@@ -84,6 +90,11 @@ export class StateManager {
   setPlayerTeam(id, team) {
     const rp = this.remotePlayers.get(id);
     if (rp) rp.team = team;
+  }
+
+  setPlayerDroneId(id, droneId) {
+    const rd = this.remoteDrones.get(id);
+    if (rd) rd.droneId = droneId;
   }
 
   removePlayer(id) {

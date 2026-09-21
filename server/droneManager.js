@@ -9,6 +9,8 @@ export function handleEnterDrone(ws, player, room, msg) {
   if (player.mode === 'fpv') return;
 
   const requestedDroneId = String(msg.droneId || 'dron1').slice(0, 32);
+  const validIds = ['dron1', 'dron2', 'dron3', 'dron4'];
+  const finalDroneId = validIds.includes(requestedDroneId) ? requestedDroneId : 'dron1';
 
   const px = typeof msg.px === 'number' ? msg.px : player.x;
   const pz = typeof msg.pz === 'number' ? msg.pz : player.z;
@@ -34,12 +36,14 @@ export function handleEnterDrone(ws, player, room, msg) {
   }
 
   player.mode = 'fpv';
-  player.droneId = requestedDroneId;
+  player.droneId = finalDroneId;
   player.drone.x = dx;
   player.drone.y = player.y;
   player.drone.z = dz;
-  player.drone.qx = 0; player.drone.qy = 0;
-  player.drone.qz = 0; player.drone.qw = 1;
+  player.drone.qx = 0;
+  player.drone.qy = 0;
+  player.drone.qz = 0;
+  player.drone.qw = 1;
   player.drone.crashed = false;
   player.drone.rpm = 0;
 
@@ -50,9 +54,14 @@ export function handleEnterDrone(ws, player, room, msg) {
   player.resetValidation();
 
   sendJSON(ws, { type: 'drone_selected', droneId: player.droneId });
-  room.broadcastJSON({ type: 'mode', id: player.id, mode: player.mode, droneId: player.droneId });
+  room.broadcastJSON({
+    type: 'mode',
+    id: player.id,
+    mode: player.mode,
+    droneId: player.droneId,
+  });
 
-  log('ENTER-DRONE', `P${player.id} → ${requestedDroneId}`);
+  log('ENTER-DRONE', `P${player.id} → ${finalDroneId}`);
 }
 
 export function handleExitDrone(ws, player, room) {
