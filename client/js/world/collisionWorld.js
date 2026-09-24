@@ -26,7 +26,10 @@ export class CollisionWorld {
     this._nearbyBuf = [];
     this._bbox = new THREE.Box3();
     this._hit = { nx: 0, ny: 0, nz: 0, push: 0 };
-    this._capsule = new THREE.Capsule(new THREE.Vector3(0, 1.8, 0), 0.4);
+    this._capStart = new THREE.Vector3();
+    this._capEnd = new THREE.Vector3();
+    this._capRadius = 0.4;
+    this._capHeight = 1.8;
   }
 
   attachRoot(root) {
@@ -131,10 +134,9 @@ export class CollisionWorld {
     if (!this.isReady()) return;
     const effR = radius + SKIN;
     const effR2 = effR * effR;
-    const capsule = this._capsule;
-    capsule.radius = effR;
-    capsule.start.set(position.x, position.y, position.z);
-    capsule.end.set(position.x, position.y + height, position.z);
+
+    const capStart = this._capStart.set(position.x, position.y, position.z);
+    const capEnd = this._capEnd.set(position.x, position.y + height, position.z);
 
     const nearby = this._getNearbyMeshes(position.x, position.z, this._nearbyBuf);
     if (nearby.length === 0) return;
@@ -155,12 +157,12 @@ export class CollisionWorld {
         const dx = position.x - e[12];
         const dy = position.y - e[13];
         const dz = position.z - e[14];
-        const r = bs.radius + effR * 2;
+        const r = bs.radius + effR * 2 + height;
         if (Math.abs(dy) > r) continue;
         if (dx * dx + dz * dz > r * r) continue;
       }
 
-      const hit = this._capsuleVsMesh(position, capsule, mesh);
+      const hit = this._capsuleVsMesh(capStart, capEnd, effR, effR2, mesh);
       if (!hit) continue;
 
       const ny = hit.ny;
@@ -206,21 +208,25 @@ export class CollisionWorld {
     }
   }
 
-  _capsuleVsMesh(pos, capsule, mesh) {
+  _capsuleVsMesh(capStart, capEnd, radius, radiusSq, mesh) {
     if (!mesh.geometry || !mesh.geometry.boundsTree) return null;
     try {
       const invMat = this._invMat.copy(mesh.matrixWorld).invert();
-      const localStart = this._localTarget.copy(capsule.start).applyMatrix4(invMat);
-      const localEnd = this._localClosest.copy(capsule.end).applyMatrix4(invMat);
+      const localStart = this._localTarget.copy(capStart).applyMatrix4(invMat);
+      const localEnd = this._localClosest.copy(capEnd).applyMatrix4(invMat);
 
-      const target = this._targetCopy.copy(localStart).add(localEnd).multiplyScalar(0.5);
+      const midX = (localStart.x + localEnd.x) * 0.5;
+      const midY = (localStart.y + localEnd.y) * 0.5;
+      const midZ = (localStart.z + localEnd.z) * 0.5;
+      const target = this._targetCopy.set(midX, midY, midZ);
+
       const closestPoint = this._closestPoint;
       let found = false;
       let closestDistSq = Infinity;
       const targetCopy = this._targetCopy;
 
       mesh.geometry.boundsTree.shapecast({
-        intersectsBounds: (box) => box.distanceToPoint(targetCopy) <= capsule.radius + capsule.height * 0.5,
+        intersectsBounds: (box) => box.distanceToPoint(targetCopy) <= radius + 1.0,
         intersectsTriangle: (tri) => {
           tri.closestPointToPoint(targetCopy, closestPoint);
           const d = closestPoint.distanceToSquared(targetCopy);
@@ -233,10 +239,163 @@ export class CollisionWorld {
       });
 
       if (!found) return null;
-      if (closestDistSq >= capsule.radius * capsule.radius) return null;
+      if (closestDistSq >= radiusSq) return null;
 
       const localNormal = this._localNormal.copy(target).sub(closest).normalize();
-      const push = capsule.radius - Math.sqrt(closestDistSq);
+      const push = radius - Math.sqrt(closestDistSq);
+      const worldNormal = this._worldNormal.copy(localNormal).transformDirection(mesh.matrixWorld);
+
+      const h = this._hit;
+      h.nx = worldNormal.x;
+      h.ny = worldNormal.y;
+      h.nz = worldNormal.z;
+      h.push = push;
+      return h;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  resolvePlayer(position, velocity, radius, dt = 1 / 60) {
+    if (!this.isReady()) return;
+    const effR = radius + SKIN;
+    const effR2 = effR * effR;
+
+    const nearby = this._getNearbyMeshes(position.x, position.z, this._nearbyBuf);
+    if (nearby.length === 0) return;
+
+    let floorPush = 0;
+    let ceilPush = 0;
+    let wallNx = 0;
+    let wallNy = 0;
+    let wallNz = 0;
+    let wallPush = 0;
+    let wallCount = 0;
+
+    for (let i = 0; i < nearby.length; i++) {
+      const mesh = nearby[i];
+      const bs = mesh.geometry.boundingSphere;
+      if (bs) {
+        const e = mesh.matrixWorld.elements;
+        const dx = position.x - e[12];
+        const dy = position.y - e[13];
+        const dz = position.z - e[14];
+        const r = bs.radius + effR;
+        if (Math.abs(dy) > r) continue;
+        if (dx * dx + dz * dz > r * r) continue;
+      }
+
+      const hit = this._sphereVsMesh(position, effR, effR2, mesh);
+      if (!hit) continue;
+
+      const ny = hit.ny;
+
+      if (ny > 0.85) {
+        if (hit.push > floorPush) floorPush = hit.push;
+      } else if (ny < -0.85) {
+        if (hit.push > ceilPush) ceilPush = hit.push;
+      } else {
+        wallNx += hit.nx;
+        wallNy += hit.ny;
+        wallNz += hit.nz;
+        if (hit.push > wallPush) wallPush = hit.push;
+        wallCount++;
+      }
+    }
+
+    if (floorPush > 0) {
+      position.y += floorPush;
+      if (velocity.y < 0) velocity.y = 0;
+    }
+    if (ceilPush > 0) {
+      position.y -= ceilPush;
+      if (velocity.y > 0) velocity.y = 0;
+    }
+    if (wallCount > 0) {
+      const len = Math.sqrt(wallNx * wallNx + wallNy * wallNy + wallNz * wallNz);
+      if (len > 1e-4) {
+        const nx = wallNx / len;
+        const ny = wallNy / len;
+        const nz = wallNz / len;
+        const smooth = Math.min(1, 20 * dt);
+
+        position.x += nx * wallPush * smooth;
+        if (Math.abs(ny) > 0.3) position.y += ny * wallPush * smooth * 0.5;
+        position.z += nz * wallPush * smooth;
+
+        const vn = velocity.x * nx + velocity.y * ny + velocity.z * nz;
+        if (vn < 0) {
+          velocity.x -= nx * vn;
+          if (Math.abs(ny) > 0.3) velocity.y -= ny * vn;
+          velocity.z -= nz * vn;
+        }
+      }
+    }
+  }
+
+  raycastSphere(position, radius, velocity) {
+    if (!this.isReady()) return 0;
+    const nearby = this._getNearbyMeshes(position.x, position.z, this._nearbyBuf);
+    if (nearby.length === 0) return 0;
+
+    const r2 = radius * radius;
+    let hardestImpact = 0;
+
+    for (let i = 0; i < nearby.length; i++) {
+      const hit = this._sphereVsMesh(position, radius, r2, nearby[i]);
+      if (!hit) continue;
+
+      if (velocity) {
+        const vn = velocity.x * hit.nx + velocity.y * hit.ny + velocity.z * hit.nz;
+        if (vn < 0) {
+          hardestImpact = Math.max(hardestImpact, -vn);
+          velocity.x -= hit.nx * vn * 1.2;
+          velocity.y -= hit.ny * vn * 1.2;
+          velocity.z -= hit.nz * vn * 1.2;
+          velocity.x *= 0.7;
+          velocity.z *= 0.7;
+        }
+      }
+      position.x += hit.nx * hit.push;
+      position.y += hit.ny * hit.push;
+      position.z += hit.nz * hit.push;
+    }
+
+    return hardestImpact;
+  }
+
+  _sphereVsMesh(pos, radius, radiusSq, mesh) {
+    if (!mesh.geometry || !mesh.geometry.boundsTree) return null;
+    try {
+      const invMat = this._invMat.copy(mesh.matrixWorld).invert();
+      const target = this._localTarget.set(pos.x, pos.y, pos.z).applyMatrix4(invMat);
+
+      this._targetCopy.copy(target);
+
+      const closest = this._localClosest;
+      const closestPoint = this._closestPoint;
+      let found = false;
+      let closestDistSq = Infinity;
+      const targetCopy = this._targetCopy;
+
+      mesh.geometry.boundsTree.shapecast({
+        intersectsBounds: (box) => box.distanceToPoint(targetCopy) <= radius,
+        intersectsTriangle: (tri) => {
+          tri.closestPointToPoint(targetCopy, closestPoint);
+          const d = closestPoint.distanceToSquared(targetCopy);
+          if (d < closestDistSq) {
+            closestDistSq = d;
+            closest.copy(closestPoint);
+            found = true;
+          }
+        },
+      });
+
+      if (!found) return null;
+      if (closestDistSq >= radiusSq) return null;
+
+      const localNormal = this._localNormal.copy(target).sub(closest).normalize();
+      const push = radius - Math.sqrt(closestDistSq);
       const worldNormal = this._worldNormal.copy(localNormal).transformDirection(mesh.matrixWorld);
 
       const h = this._hit;
