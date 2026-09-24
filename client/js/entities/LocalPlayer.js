@@ -3,13 +3,14 @@ import { PlayerPhysics } from '../../../shared/physics/playerPhysics.js';
 import { CFG } from '../../../shared/config/config.js';
 
 const SCALE = 4.0;
+const CAPSULE_RADIUS = 0.4;
+const CAPSULE_HEIGHT = 1.8;
 
 export class LocalPlayer {
   constructor(scene, gltf) {
     this.physics = new PlayerPhysics();
     this.group = new THREE.Group();
     this.animPhase = 0;
-    this._resolveAcc = 0;
     this._cachedGY = null;
     this._cachedGYX = 0;
     this._cachedGYZ = 0;
@@ -102,7 +103,7 @@ export class LocalPlayer {
   spawn(collisionWorld, x, z, yaw = 0) {
     let y = 0;
     if (collisionWorld && collisionWorld.isReady()) {
-      const gY = collisionWorld.raycastDown(x, z, 10000, -10000);
+      const gY = collisionWorld.raycastDown(x, z, 500, -50);
       if (gY !== null) y = gY + 0.1;
     }
     this.physics.reset({ x, y, z }, yaw);
@@ -112,7 +113,6 @@ export class LocalPlayer {
     this.currPos.set(x, y, z);
     this.animPhase = 0;
     this._cachedGY = null;
-    this._resolveAcc = 0;
   }
 
   update(dt, input, camYaw, collisionWorld) {
@@ -142,12 +142,26 @@ export class LocalPlayer {
     this.physics.step(dt, worldMoveX, worldMoveZ, CFG.PLAYER_SPEED, CFG.PLAYER_ACCEL, CFG.GRAVITY);
 
     if (collisionWorld && collisionWorld.isReady()) {
+      collisionWorld.resolvePlayerCapsule(
+        this.physics.position,
+        this.physics.velocity,
+        CAPSULE_RADIUS,
+        CAPSULE_HEIGHT,
+        dt
+      );
+
       const px = this.physics.position.x;
       const pz = this.physics.position.z;
+      const py = this.physics.position.y;
+
       const dxc = Math.abs(px - this._cachedGYX);
       const dzc = Math.abs(pz - this._cachedGYZ);
-      if (this._cachedGY === null || dxc > 0.5 || dzc > 0.5) {
-        this._cachedGY = collisionWorld.raycastDownCached(px, pz, 10000, -10000);
+
+      const fromY = py + 1.5;
+      const toY = py - 50.0;
+
+      if (this._cachedGY === null || dxc > 0.4 || dzc > 0.4) {
+        this._cachedGY = collisionWorld.raycastDown(px, pz, fromY, toY);
         this._cachedGYX = px;
         this._cachedGYZ = pz;
       }
@@ -159,17 +173,6 @@ export class LocalPlayer {
           this.physics.position.y = minY;
           if (this.physics.velocity.y < 0) this.physics.velocity.y = 0;
         }
-      }
-
-      this._resolveAcc += dt;
-      if (this._resolveAcc >= 1 / 15) {
-        this._resolveAcc = 0;
-        collisionWorld.resolvePlayer(
-          this.physics.position,
-          this.physics.velocity,
-          this.physics.radius,
-          1 / 15
-        );
       }
     }
 

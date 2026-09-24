@@ -2,6 +2,7 @@ import { playExplosion } from '../../assets/sounds/explosion.js';
 import { createLocalDrone } from '../../assets/sounds/drone_local.js';
 import { createRemoteDrone } from '../../assets/sounds/drone_remote.js';
 import { playBatteryBeep } from '../../assets/sounds/battery_beep.js';
+import { createCarEngine } from '../../assets/sounds/car_engine.js';
 
 export class AudioManager {
   constructor() {
@@ -12,6 +13,7 @@ export class AudioManager {
     this.drone = null;
     this.remoteDrones = new Map();
     this.wind = null;
+    this.carEngine = null;
   }
 
   init() {
@@ -125,6 +127,23 @@ export class AudioManager {
     try { this.wind.filter.disconnect(); } catch {}
     try { this.wind.gain.disconnect(); } catch {}
     this.wind = null;
+  }
+
+  playCarEngine() {
+    if (!this.enabled || !this.ctx) return;
+    if (this.carEngine) return;
+    this.carEngine = createCarEngine(this.ctx, this.masterGain);
+  }
+
+  updateCarEngine(rpm, maxRpm, speed, dt) {
+    if (!this.carEngine) return;
+    this.carEngine.update(rpm, maxRpm, speed, dt);
+  }
+
+  stopCarEngine() {
+    if (!this.carEngine) return;
+    this.carEngine.stop();
+    this.carEngine = null;
   }
 
   ensureRemoteDrone(id) {

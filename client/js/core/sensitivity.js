@@ -30,6 +30,28 @@ export class Sensitivity {
       this.cylBall = cylEl.querySelector('.cyl-ball');
       if (this.cylTrack) this._bindCylinder();
     }
+
+    this.carThrottleTrack = null;
+    this.carThrottleBall = null;
+    this.carThrottleActiveId = null;
+    this.carThrottleValue = 0;
+    this.carThrottleTop = 0;
+    this.carThrottleHeight = 0;
+
+    this.carSteerLeft = false;
+    this.carSteerRight = false;
+
+    const carCylEl = document.getElementById('car-cylinder');
+    if (carCylEl) {
+      this.carThrottleTrack = carCylEl.querySelector('.cyl-track');
+      this.carThrottleBall = carCylEl.querySelector('.cyl-ball');
+      if (this.carThrottleTrack) this._bindCarThrottle();
+    }
+
+    const steerLeft = document.getElementById('btn-steer-left');
+    const steerRight = document.getElementById('btn-steer-right');
+    if (steerLeft) this._bindSteer(steerLeft, 'left');
+    if (steerRight) this._bindSteer(steerRight, 'right');
   }
 
   _bindCylinder() {
@@ -80,9 +102,76 @@ export class Sensitivity {
     this.cylBall.style.transform = 'translateX(-50%)';
   }
 
+  _bindCarThrottle() {
+    this._carCylDown = (e) => {
+      if (this.carThrottleActiveId !== null) return;
+      this._refreshCarCyl();
+      if (this.carThrottleHeight <= 0) return;
+      this.carThrottleActiveId = e.pointerId;
+      this.carThrottleBall.classList.add('active');
+      this._setCarBall(e.clientY);
+      e.preventDefault();
+    };
+    this._carCylMove = (e) => {
+      if (e.pointerId !== this.carThrottleActiveId) return;
+      if (this.carThrottleHeight <= 0) this._refreshCarCyl();
+      this._setCarBall(e.clientY);
+    };
+    this._carCylUp = (e) => {
+      if (e.pointerId !== this.carThrottleActiveId) return;
+      this.carThrottleActiveId = null;
+      this.carThrottleBall.classList.remove('active');
+      this.carThrottleValue = 0;
+      this.carThrottleBall.style.top = '50%';
+      this.carThrottleBall.style.transform = 'translate(-50%, -50%)';
+    };
+    this.carThrottleTrack.addEventListener('pointerdown', this._carCylDown);
+    window.addEventListener('pointermove', this._carCylMove);
+    window.addEventListener('pointerup', this._carCylUp);
+    window.addEventListener('pointercancel', this._carCylUp);
+  }
+
+  _refreshCarCyl() {
+    const rect = this.carThrottleTrack.getBoundingClientRect();
+    this.carThrottleTop = rect.top;
+    this.carThrottleHeight = rect.height;
+  }
+
+  _setCarBall(clientY) {
+    const centerY = this.carThrottleTop + this.carThrottleHeight / 2;
+    let dy = clientY - centerY;
+    const maxDy = this.carThrottleHeight * 0.4;
+    if (dy > maxDy) dy = maxDy;
+    if (dy < -maxDy) dy = -maxDy;
+    const norm = -dy / maxDy;
+    this.carThrottleValue = Math.max(-1, Math.min(1, norm));
+    const ballY = dy + this.carThrottleHeight / 2;
+    this.carThrottleBall.style.top = ballY + 'px';
+    this.carThrottleBall.style.transform = 'translateX(-50%)';
+  }
+
+  _bindSteer(el, side) {
+    const onDown = (e) => {
+      e.preventDefault();
+      el.classList.add('active');
+      if (side === 'left') this.carSteerLeft = true;
+      else this.carSteerRight = true;
+    };
+    const onUp = () => {
+      el.classList.remove('active');
+      if (side === 'left') this.carSteerLeft = false;
+      else this.carSteerRight = false;
+    };
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+    el.addEventListener('pointerleave', onUp);
+  }
+
   refresh() {
     this.move.refreshSizes();
     this._refreshCyl();
+    if (this.carThrottleTrack) this._refreshCarCyl();
   }
 
   refreshSizes() {
@@ -97,6 +186,17 @@ export class Sensitivity {
       this.cylBall.style.top = '50%';
       this.cylBall.style.transform = 'translate(-50%, -50%)';
     }
+    this.carThrottleValue = 0;
+    this.carSteerLeft = false;
+    this.carSteerRight = false;
+    if (this.carThrottleBall) {
+      this.carThrottleBall.style.top = '50%';
+      this.carThrottleBall.style.transform = 'translate(-50%, -50%)';
+    }
+    const sl = document.getElementById('btn-steer-left');
+    const sr = document.getElementById('btn-steer-right');
+    if (sl) sl.classList.remove('active');
+    if (sr) sr.classList.remove('active');
   }
 
   getPlayerInput() {
@@ -111,6 +211,16 @@ export class Sensitivity {
       throttle: this.cylValue,
       pitch: this.camera.pitch,
       yaw: this.camera.yaw,
+    };
+  }
+
+  getCarInput() {
+    let steer = 0;
+    if (this.carSteerLeft) steer += 1;
+    if (this.carSteerRight) steer -= 1;
+    return {
+      throttle: this.carThrottleValue,
+      steer,
     };
   }
 }

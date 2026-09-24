@@ -115,6 +115,9 @@ export class ExplosionFX {
   }
 
   trigger(position, options, onDamage) {
+    if (!position) return;
+    if (!isFinite(position.x) || !isFinite(position.y) || !isFinite(position.z)) return;
+
     const opts = Object.assign({
       radius: 14,
       damage: 250,
@@ -131,8 +134,13 @@ export class ExplosionFX {
     }, options || {});
 
     let exp = null;
-    for (const e of this.pool) if (!e.active) { exp = e; break; }
-    if (!exp) exp = this.pool[0];
+    for (const e of this.pool) {
+      if (!e.active) { exp = e; break; }
+    }
+    if (!exp) {
+      exp = this.pool[0];
+      exp.group.visible = false;
+    }
 
     exp.active = true;
     exp.elapsed = 0;
@@ -241,7 +249,10 @@ export class ExplosionFX {
 
   update(dt) {
     for (const exp of this.pool) {
-      if (!exp.active) continue;
+      if (!exp.active) {
+        if (exp.group.visible) exp.group.visible = false;
+        continue;
+      }
 
       if (!exp.damageDealt) {
         exp.damageDealt = true;

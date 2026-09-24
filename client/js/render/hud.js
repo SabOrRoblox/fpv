@@ -10,15 +10,19 @@ export class Hud {
     this.hpFill = document.getElementById('hud-hp-fill');
     this.hpText = document.getElementById('hud-hp');
     this.fpsEl = document.getElementById('hud-fps');
-    this.pingEl = document.getElementById('hud-ping');
 
     this.droneHud = document.getElementById('drone-hud-parts');
+    this.carHud = document.getElementById('car-hud-parts');
+
     this.speedoCanvas = document.getElementById('speedo');
     this.tachoCanvas = document.getElementById('tacho');
+    this.carSpeedoCanvas = document.getElementById('car-speedo-canvas');
+    this.carSpeedValue = document.getElementById('car-speed-value');
 
     this._acc = 0;
     this._lastSpeed = 0;
     this._lastRpm = 0;
+    this._lastCarSpeed = 0;
 
     this._fpsFrames = 0;
     this._fpsAcc = 0;
@@ -29,6 +33,7 @@ export class Hud {
   refreshCanvas() {
     this._setupCanvas(this.speedoCanvas);
     this._setupCanvas(this.tachoCanvas);
+    this._setupCanvas(this.carSpeedoCanvas);
   }
 
   _setupCanvas(canvas) {
@@ -55,8 +60,13 @@ export class Hud {
   setMode(mode) {
     if (mode === 'fpv') {
       this.droneHud.style.display = 'block';
+      this.carHud.style.display = 'none';
+    } else if (mode === 'car') {
+      this.droneHud.style.display = 'none';
+      this.carHud.style.display = 'block';
     } else {
       this.droneHud.style.display = 'none';
+      this.carHud.style.display = 'none';
     }
     this.refreshCanvas();
   }
@@ -76,12 +86,6 @@ export class Hud {
       if (this.fpsEl) this.fpsEl.textContent = 'FPS ' + fps;
     }
 
-    if (this.pingEl) {
-      const p = data.ping;
-      const val = (p && p > 0) ? Math.round(p) : '--';
-      this.pingEl.textContent = 'PING ' + val;
-    }
-
     this._acc += dt;
     if (this._acc < 0.05) return;
     this._acc = 0;
@@ -90,6 +94,15 @@ export class Hud {
     const hpPct = (hp / 100) * 100;
     if (this.hpFill) this.hpFill.style.width = hpPct + '%';
     if (this.hpText) this.hpText.textContent = Math.round(hp);
+
+    if (data.isCar) {
+      const carSpeed = isFinite(data.carSpeed) ? data.carSpeed : 0;
+      this._lastCarSpeed += (carSpeed - this._lastCarSpeed) * 0.3;
+      if (!isFinite(this._lastCarSpeed)) this._lastCarSpeed = 0;
+      if (this.carSpeedValue) this.carSpeedValue.textContent = this._lastCarSpeed.toFixed(0);
+      this._drawGauge(this.carSpeedoCanvas, this._lastCarSpeed, 160, false, '#e8a854');
+      return;
+    }
 
     const speed = isFinite(data.speed) ? data.speed : 0;
     const rpm = isFinite(data.rpm) ? data.rpm : 0;
@@ -112,12 +125,12 @@ export class Hud {
       if (this.batEl) this.batEl.textContent = ((data.battery || 100) | 0);
       if (this.rpmEl) this.rpmEl.textContent = Math.round(rpm);
 
-      this._drawGauge(this.speedoCanvas, this._lastSpeed, 200, false);
-      this._drawGauge(this.tachoCanvas, this._lastRpm, 1, true);
+      this._drawGauge(this.speedoCanvas, this._lastSpeed, 200, false, '#7ec4a8');
+      this._drawGauge(this.tachoCanvas, this._lastRpm, 1, true, '#7ec4a8');
     }
   }
 
-  _drawGauge(canvas, value, maxVal, isRedline) {
+  _drawGauge(canvas, value, maxVal, isRedline, baseColor) {
     if (!canvas) return;
     const w = canvas._cssW;
     const h = canvas._cssH;
@@ -144,7 +157,7 @@ export class Hud {
 
     ctx.beginPath();
     ctx.arc(cx, cy, r, startAngle, angle);
-    const col = (isRedline && frac > 0.85) ? '#e86c6c' : '#7ec4a8';
+    const col = (isRedline && frac > 0.85) ? '#e86c6c' : (baseColor || '#7ec4a8');
     ctx.strokeStyle = col;
     ctx.lineWidth = 6;
     ctx.stroke();

@@ -3,11 +3,12 @@ import { Player } from './core/player.js';
 import { RoomManager } from './core/roomManager.js';
 import { unwrapBinary, MSG } from '../shared/net/protocol.js';
 import {
-  handleStatePlayer, handleStateDrone,
+  handleStatePlayer, handleStateDrone, handleStateCar,
   handleEventCrash, handleEventHit,
 } from './binaryHandlers.js';
 import { handleJSON } from './jsonHandlers.js';
 import { createSnapshotModule } from './snapshot.js';
+import { checkCarIdle } from './carManager.js';
 import { SERVER_CONFIG } from './config.js';
 import { log } from './log.js';
 
@@ -18,7 +19,7 @@ let nextPlayerId = 1;
 
 const stats = {
   conn: 0, joins: 0, leaves: 0, in: 0, out: 0,
-  stP: 0, stD: 0, crash: 0, hit: 0, snap: 0, fail: 0, kicks: 0,
+  stP: 0, stD: 0, stC: 0, crash: 0, hit: 0, snap: 0, fail: 0, kicks: 0,
 };
 
 function sendJSON(ws, obj) {
@@ -144,6 +145,7 @@ wss.on('connection', (ws) => {
       switch (type) {
         case MSG.STATE_PLAYER: handleStatePlayer(ws, player, payload, stats); return;
         case MSG.STATE_DRONE: handleStateDrone(ws, player, payload, stats); return;
+        case MSG.STATE_CAR: handleStateCar(ws, player, payload, stats, room); return;
         case MSG.EVENT_CRASH: handleEventCrash(player, room, data, payload, stats); return;
         case MSG.EVENT_HIT: handleEventHit(player, room, data, payload, stats); return;
         default: return;
@@ -174,6 +176,7 @@ function snapshotLoop() {
 snapshotLoop();
 
 setInterval(() => roomManager.checkTimeouts(), SERVER_CONFIG.CLEANUP_INTERVAL_MS);
+setInterval(() => checkCarIdle(roomManager), 1000);
 
 log('server', `ws listening on :${SERVER_CONFIG.PORT}`);
 

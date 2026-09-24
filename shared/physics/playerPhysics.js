@@ -8,7 +8,7 @@ export class PlayerPhysics {
     this.hp = 100;
     this.maxHp = 100;
     this.alive = true;
-    this.radius = 0.4;
+    this.radius = 0.5;
     this.invulnTime = 0;
   }
 

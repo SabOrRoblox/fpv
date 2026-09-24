@@ -4,10 +4,12 @@ export const MSG = {
   STATE_PLAYER: 7, STATE_DRONE: 8,
   EVENT_CRASH: 9, EVENT_HIT: 10,
   ROOM_STATE: 11, VALIDATION_FAIL: 12, SNAPSHOT: 13,
+  STATE_CAR: 14,
 };
 
 export const PLAYER_STATE_SIZE = 22;
 export const DRONE_STATE_SIZE = 28;
+export const CAR_STATE_SIZE = 22;
 export const EVENT_CRASH_SIZE = 12;
 export const EVENT_HIT_SIZE = 8;
 
@@ -105,15 +107,40 @@ export function decodeDroneState(dv, offset) {
   };
 }
 
-export function buildSnapshot(players, drones) {
+export function encodeCarState(buffer, offset, id, x, y, z, yaw, hp, colorIdx) {
+  const dv = new DataView(buffer);
+  dv.setUint32(offset, id | 0, true);
+  dv.setFloat32(offset + 4, x, true);
+  dv.setFloat32(offset + 8, y, true);
+  dv.setFloat32(offset + 12, z, true);
+  dv.setFloat32(offset + 16, yaw, true);
+  dv.setUint8(offset + 20, Math.max(0, Math.min(255, hp | 0)));
+  dv.setUint8(offset + 21, (colorIdx | 0) & 0xff);
+}
+
+export function decodeCarState(dv, offset) {
+  return {
+    id: dv.getUint32(offset, true),
+    x: dv.getFloat32(offset + 4, true),
+    y: dv.getFloat32(offset + 8, true),
+    z: dv.getFloat32(offset + 12, true),
+    yaw: dv.getFloat32(offset + 16, true),
+    hp: dv.getUint8(offset + 20),
+    colorIdx: dv.getUint8(offset + 21),
+  };
+}
+
+export function buildSnapshot(players, drones, cars) {
   const pc = Math.min(players.length, MAX_COUNT);
   const dc = Math.min(drones.length, MAX_COUNT);
-  const size = 2 + pc * PLAYER_STATE_SIZE + dc * DRONE_STATE_SIZE;
+  const cc = Math.min(cars ? cars.length : 0, MAX_COUNT);
+  const size = 3 + pc * PLAYER_STATE_SIZE + dc * DRONE_STATE_SIZE + cc * CAR_STATE_SIZE;
   const buffer = new ArrayBuffer(size);
   const dv = new DataView(buffer);
   dv.setUint8(0, pc);
   dv.setUint8(1, dc);
-  let offset = 2;
+  dv.setUint8(2, cc);
+  let offset = 3;
   for (let i = 0; i < pc; i++) {
     const p = players[i];
     encodePlayerState(buffer, offset, p.id, p.x, p.y, p.z, p.yaw, p.hp, p.alive);
@@ -121,8 +148,24 @@ export function buildSnapshot(players, drones) {
   }
   for (let i = 0; i < dc; i++) {
     const d = drones[i];
-    encodeDroneState(buffer, offset, d.id, d.x, d.y, d.z, d.qx, d.qy, d.qz, d.qw, d.crashed, d.rpm || 0, d.droneIdx || 0);
+    const idx = typeof d.droneIdx === 'number' ? d.droneIdx : 0;
+    encodeDroneState(
+      buffer, offset,
+      d.id, d.x, d.y, d.z,
+      d.qx, d.qy, d.qz, d.qw,
+      d.crashed, d.rpm || 0, idx
+    );
     offset += DRONE_STATE_SIZE;
+  }
+  for (let i = 0; i < cc; i++) {
+    const c = cars[i];
+    encodeCarState(
+      buffer, offset,
+      c.id, c.x, c.y, c.z, c.yaw,
+      c.hp !== undefined ? c.hp : 200,
+      c.colorIdx || 0
+    );
+    offset += CAR_STATE_SIZE;
   }
   return buffer;
 }
@@ -131,9 +174,11 @@ export function parseSnapshot(buffer) {
   const dv = new DataView(buffer);
   const pc = dv.getUint8(0);
   const dc = dv.getUint8(1);
+  const cc = dv.getUint8(2);
   const players = [];
   const drones = [];
-  let offset = 2;
+  const cars = [];
+  let offset = 3;
   for (let i = 0; i < pc; i++) {
     players.push(decodePlayerState(dv, offset));
     offset += PLAYER_STATE_SIZE;
@@ -142,7 +187,11 @@ export function parseSnapshot(buffer) {
     drones.push(decodeDroneState(dv, offset));
     offset += DRONE_STATE_SIZE;
   }
-  return { players, drones };
+  for (let i = 0; i < cc; i++) {
+    cars.push(decodeCarState(dv, offset));
+    offset += CAR_STATE_SIZE;
+  }
+  return { players, drones, cars };
 }
 
 export function encodeEventCrash(buffer, id, x, z) {

@@ -1,3 +1,5 @@
+
+
 import * as THREE from 'three';
 import { CFG } from '../../../shared/config/config.js';
 import { DronePhysics } from '../../../shared/physics/dronePhysics.js';
@@ -87,7 +89,7 @@ export class LocalDrone {
     let y = pos.y;
     let gY = 0;
     if (collisionWorld && collisionWorld.isReady()) {
-      const h = collisionWorld.raycastDown(pos.x, pos.z, 10000, -10000);
+      const h = collisionWorld.raycastDown(pos.x, pos.z, 500, -50);
       if (h !== null) {
         gY = h;
         y = h + CFG.DRONE_RADIUS + 0.02;
@@ -111,11 +113,13 @@ export class LocalDrone {
     this.physics.step(dt, input);
 
     if (collisionWorld && collisionWorld.isReady()) {
-      const gY = collisionWorld.raycastDown(
-        this.physics.position.x,
-        this.physics.position.z,
-        10000, -10000
-      );
+      const px = this.physics.position.x;
+      const pz = this.physics.position.z;
+      const py = this.physics.position.y;
+
+      const fromY = py + 1.5;
+      const toY = py - 50.0;
+      const gY = collisionWorld.raycastDown(px, pz, fromY, toY);
       if (gY !== null) {
         const maxRise = this.physics.position.y + CFG.DRONE_RADIUS;
         if (gY <= maxRise) this.physics.groundY = gY;

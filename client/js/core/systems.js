@@ -11,23 +11,52 @@ export function distToPad() {
   return Math.hypot(dx, dz);
 }
 
+export function distToCar() {
+  const gs = GameState;
+  if (!gs.localPlayer || !gs.localCar) return 999;
+  const dx = gs.localPlayer.position.x - gs.localCar.position.x;
+  const dz = gs.localPlayer.position.z - gs.localCar.position.z;
+  return Math.hypot(dx, dz);
+}
+
 export function setUIMode(mode, els) {
   const gs = GameState;
+
   if (mode === 'fpv') {
     els.joyMove.style.display = 'none';
     els.cylDrone.style.display = 'flex';
+    if (els.carCyl) els.carCyl.style.display = 'none';
+    if (els.carSteer) els.carSteer.style.display = 'none';
     els.btnEnter.style.display = 'none';
     els.btnExit.style.display = 'block';
+    els.btnCarEnter.style.display = 'none';
+    els.btnCarExit.style.display = 'none';
     els.sideButtons.style.display = 'none';
     gs.hud.setMode('fpv');
+  } else if (mode === 'car') {
+    els.joyMove.style.display = 'none';
+    els.cylDrone.style.display = 'none';
+    if (els.carCyl) els.carCyl.style.display = 'flex';
+    if (els.carSteer) els.carSteer.style.display = 'flex';
+    els.btnEnter.style.display = 'none';
+    els.btnExit.style.display = 'none';
+    els.btnCarEnter.style.display = 'none';
+    els.btnCarExit.style.display = 'block';
+    els.sideButtons.style.display = 'none';
+    gs.hud.setMode('car');
   } else {
     els.joyMove.style.display = 'block';
     els.cylDrone.style.display = 'none';
+    if (els.carCyl) els.carCyl.style.display = 'none';
+    if (els.carSteer) els.carSteer.style.display = 'none';
     els.btnEnter.style.display = 'none';
     els.btnExit.style.display = 'none';
+    els.btnCarEnter.style.display = 'none';
+    els.btnCarExit.style.display = 'none';
     els.sideButtons.style.display = 'flex';
     gs.hud.setMode('walk');
   }
+
   requestAnimationFrame(() => {
     if (els.playerControls && els.playerControls.refresh) els.playerControls.refresh();
     if (els.droneControls && els.droneControls.refresh) els.droneControls.refresh();
@@ -41,13 +70,24 @@ export function respawnAll(els, spawnOverride) {
 
   gs.lastPlayerPos = null;
   gs.localPlayer.spawn(gs.collisionWorld, spawn.x, spawn.z, 0);
+  if (gs.localPlayer.group) gs.localPlayer.group.visible = true;
 
   const padX = gs.myTeam === 'blue' ? CFG.DRONE_PAD_POS_BLUE.x : CFG.DRONE_PAD_POS.x;
   const padZ = gs.myTeam === 'blue' ? CFG.DRONE_PAD_POS_BLUE.z : CFG.DRONE_PAD_POS.z;
   gs.localDrone.resetToPos(gs.collisionWorld, { x: padX, y: 0, z: padZ }, 0);
 
+  if (gs.localCar) {
+    const carX = spawn.x + 5;
+    const carZ = spawn.z;
+    gs.localCar.spawn(gs.collisionWorld, carX, carZ, 0);
+  }
+
   gs.lastCrashProcessed = false;
   gs.camYaw = 0;
+  gs._fpvInit = false;
+  gs._walkInit = false;
+  gs._carInit = false;
+
   els.touchCam.yaw = 0;
   els.touchCam.pitch = 0;
   els.touchCam._targetYaw = 0;
@@ -56,6 +96,7 @@ export function respawnAll(els, spawnOverride) {
   els.touchCam._currentPitch = 0;
   els.touchCam.distance = CFG.CAMERA_3RD_DIST;
   els.touchCam.resetPitchOnRelease = false;
+
   setUIMode('walk', els);
 }
 
@@ -73,11 +114,10 @@ export function enterDrone(els) {
   };
 
   if (gs.collisionWorld && gs.collisionWorld.isReady()) {
-    const gY = gs.collisionWorld.raycastDown(
-      gs.localDrone.position.x,
-      gs.localDrone.position.z,
-      10000, -10000
-    );
+    const dx = gs.localDrone.position.x;
+    const dz = gs.localDrone.position.z;
+    const dy = gs.localDrone.position.y;
+    const gY = gs.collisionWorld.raycastDown(dx, dz, dy + 5, dy - 50);
     if (gY !== null) gs.localDrone.physics.groundY = gY;
   }
 
@@ -88,11 +128,17 @@ export function enterDrone(els) {
   els.droneControls.reset();
   els.droneSelect.close();
 
+  gs._fpvInit = false;
+  gs._walkInit = false;
+  gs._carInit = false;
+
   els.touchCam.resetPitchOnRelease = true;
   els.touchCam._targetYaw = gs.localDrone.physics.yaw;
   els.touchCam._currentYaw = gs.localDrone.physics.yaw;
+  els.touchCam.yaw = gs.localDrone.physics.yaw;
   els.touchCam._targetPitch = 0;
   els.touchCam._currentPitch = 0;
+  els.touchCam.pitch = 0;
 
   if (gs.socket && gs.socket.connected) {
     gs.socket.sendJSON({
@@ -127,7 +173,7 @@ export function exitDrone(els) {
   let spawnX, spawnZ;
 
   if (gs.collisionWorld && gs.collisionWorld.isReady()) {
-    const gY = gs.collisionWorld.raycastDown(droneX, droneZ, 10000, -10000);
+    const gY = gs.collisionWorld.raycastDown(droneX, droneZ, droneY + 5, droneY - 50);
     const isHighAir = gY !== null && droneY > gY + 3.0;
 
     if (isHighAir) {
@@ -149,9 +195,100 @@ export function exitDrone(els) {
   }
 
   gs.localPlayer.spawn(gs.collisionWorld, spawnX, spawnZ, 0);
+  if (gs.localPlayer.group) gs.localPlayer.group.visible = true;
+
+  gs._fpvInit = false;
+  gs._walkInit = false;
+  gs._carInit = false;
+
+  els.touchCam._targetPitch = 0;
+  els.touchCam._currentPitch = 0;
+  els.touchCam.pitch = 0;
 
   if (gs.socket && gs.socket.connected) {
     gs.socket.sendJSON({ type: 'exit_drone' });
+  }
+
+  setUIMode('walk', els);
+}
+
+export function enterCar(els) {
+  const gs = GameState;
+  if (gs.mode !== 'walk') return;
+  if (!gs.localPlayer.alive) return;
+  if (!gs.localCar) return;
+  if (distToCar() > 4.0) return;
+
+  gs.lastPlayerPos = {
+    x: gs.localPlayer.position.x,
+    y: gs.localPlayer.position.y,
+    z: gs.localPlayer.position.z,
+    yaw: gs.localPlayer.yaw,
+  };
+
+  if (gs.collisionWorld && gs.collisionWorld.isReady()) {
+    const cx = gs.localCar.position.x;
+    const cz = gs.localCar.position.z;
+    const cy = gs.localCar.position.y;
+    const gY = gs.collisionWorld.raycastDown(cx, cz, cy + 5, cy - 50);
+    if (gY !== null) gs.localCar.physics.groundY = gY;
+  }
+
+  gs.localCar.physics.reset({
+    x: gs.localCar.position.x,
+    y: gs.localCar.position.y,
+    z: gs.localCar.position.z,
+  }, gs.localCar.yaw);
+
+  if (gs.localPlayer.group) gs.localPlayer.group.visible = false;
+  els.touchCam.resetPitchOnRelease = false;
+
+  gs._fpvInit = false;
+  gs._walkInit = false;
+  gs._carInit = false;
+
+  if (gs.socket && gs.socket.connected) {
+    gs.socket.sendJSON({
+      type: 'enter_car',
+      px: gs.localPlayer.position.x,
+      pz: gs.localPlayer.position.z,
+      cx: gs.localCar.position.x,
+      cz: gs.localCar.position.z,
+      cy: gs.localCar.position.y,
+      cyaw: gs.localCar.yaw,
+    });
+  }
+
+  setUIMode('car', els);
+}
+
+export function exitCar(els) {
+  const gs = GameState;
+  if (gs.mode !== 'car') return;
+
+  const carX = gs.localCar.position.x;
+  const carZ = gs.localCar.position.z;
+  const carY = gs.localCar.position.y;
+
+  let spawnX = carX + 3;
+  let spawnZ = carZ;
+
+  if (gs.collisionWorld && gs.collisionWorld.isReady()) {
+    const gY = gs.collisionWorld.raycastDown(spawnX, spawnZ, carY + 5, carY - 50);
+    if (gY === null) {
+      spawnX = carX - 3;
+      spawnZ = carZ;
+    }
+  }
+
+  gs.localPlayer.spawn(gs.collisionWorld, spawnX, spawnZ, gs.localCar.yaw);
+  if (gs.localPlayer.group) gs.localPlayer.group.visible = true;
+
+  gs._carInit = false;
+  gs._walkInit = false;
+
+  if (gs.socket && gs.socket.connected) {
+    gs.socket.sendJSON({ type: 'exit_car' });
   }
 
   setUIMode('walk', els);
@@ -173,6 +310,7 @@ export function handleExplosionDamage(center, radius, damage, els) {
     gs.mode = 'walk';
     gs.localDrone.piloted = false;
     gs.localDrone.physics.armed = false;
+    if (gs.localPlayer.group) gs.localPlayer.group.visible = true;
     setUIMode('walk', els);
     if (gs.socket && gs.socket.connected) gs.socket.sendJSON({ type: 'exit_drone' });
   }
@@ -222,6 +360,7 @@ export function processCrash(els) {
   gs.localDrone.piloted = false;
   gs.localDrone.physics.armed = false;
   gs.localDrone.physics.crashed = false;
+  if (gs.localPlayer.group) gs.localPlayer.group.visible = true;
   setUIMode('walk', els);
 
   if (gs.socket && gs.socket.connected) gs.socket.sendJSON({ type: 'exit_drone' });
@@ -255,7 +394,7 @@ export function posProbe(els) {
   const pz = gs.localPlayer.position.z;
   const lines = [`x=${px.toFixed(3)}`, `y=${py.toFixed(3)}`, `z=${pz.toFixed(3)}`];
   if (gs.collisionWorld.isReady()) {
-    const gY = gs.collisionWorld.raycastDown(px, pz, 10000, -10000);
+    const gY = gs.collisionWorld.raycastDown(px, pz, py + 5, py - 50);
     lines.push(`groundY=${gY !== null ? gY.toFixed(3) : 'null'}`);
     if (gY !== null) lines.push(`offset=${(py - gY).toFixed(3)}`);
   }

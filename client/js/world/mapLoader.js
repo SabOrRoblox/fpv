@@ -1,3 +1,5 @@
+
+
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { measureBox } from '../core/assetsLoader.js';
@@ -9,6 +11,14 @@ export function placeMap(scene, gltf) {
   root.scale.setScalar(CFG.MAP_MODEL_SCALE);
   root.position.y += CFG.MAP_MODEL_Y_OFFSET;
   scene.add(root);
+
+  root.traverse((o) => {
+    if (o.isMesh) {
+      o.frustumCulled = true;
+      if (o.geometry) o.geometry.computeBoundingSphere();
+    }
+  });
+
   const m = measureBox(root);
   console.log('[map] size', m.size.x.toFixed(2), m.size.y.toFixed(2), m.size.z.toFixed(2));
   console.log('[map] center', m.center.x.toFixed(2), m.center.y.toFixed(2), m.center.z.toFixed(2));

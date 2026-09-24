@@ -33,11 +33,7 @@ export class SceneManager {
       alpha: false,
     });
 
-    const dpr = lowEnd
-      ? 1.0
-      : isMobile
-        ? Math.min(window.devicePixelRatio, 1.5)
-        : Math.min(window.devicePixelRatio, 2);
+    const dpr = lowEnd ? 0.75 : isMobile ? Math.min(window.devicePixelRatio, 1.25) : Math.min(window.devicePixelRatio, 1.75);
 
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -46,10 +42,10 @@ export class SceneManager {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x87a9c9);
-    this.scene.fog = new THREE.Fog(0x87a9c9, 300, 2000);
+    this.scene.fog = new THREE.Fog(0x87a9c9, 250, 1400);
 
     const aspect = window.innerWidth / window.innerHeight;
-    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 5000);
+    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 4000);
 
     const hemi = new THREE.HemisphereLight(0xffffff, 0x445544, 1.0);
     this.scene.add(hemi);
@@ -58,7 +54,14 @@ export class SceneManager {
     sun.position.set(200, 400, 150);
     this.scene.add(sun);
 
-    window.addEventListener('resize', () => this._onResize());
+    this._onResize = this._onResize.bind(this);
+    window.addEventListener('resize', this._onResize);
+
+    if (isMobile) {
+      window.addEventListener('orientationchange', () => {
+        setTimeout(() => this._onResize(), 200);
+      });
+    }
   }
 
   _onResize() {

@@ -1,3 +1,4 @@
+
 import { SERVER_CONFIG } from '../config.js';
 
 export class Player {
@@ -32,6 +33,19 @@ export class Player {
 
     this.pktCount = 0;
     this.pktReset = Date.now();
+
+    this.car = {
+      x: 0, y: 0, z: 0, yaw: 0,
+      hp: 200, alive: true,
+      colorIdx: 0,
+      idleTime: 0,
+    };
+    this.carId = 0;
+    this.hasCar = false;
+    this.lastCarX = 0;
+    this.lastCarY = 0;
+    this.lastCarZ = 0;
+    this.carIdleSince = 0;
   }
 
   touch() { this.lastSeen = Date.now(); }
@@ -48,4 +62,8 @@ export class Player {
   }
 
   resetValidation() { this.validationFails = 0; }
+
+  markCarIdle() {
+    this.carIdleSince = Date.now();
+  }
 }

@@ -5,6 +5,7 @@ export function createSnapshotModule(roomManager, stats) {
     for (const room of roomManager.rooms.values()) {
       const players = [];
       const drones = [];
+      const cars = [];
 
       for (const p of room.players.values()) {
         if (p.mode === 'walk') {
@@ -28,11 +29,20 @@ export function createSnapshotModule(roomManager, stats) {
             droneIdx: droneIdToIndex(p.droneId),
           });
         }
+        if (p.mode === 'car' && p.car) {
+          cars.push({
+            id: p.id,
+            x: p.car.x, y: p.car.y, z: p.car.z,
+            yaw: p.car.yaw,
+            hp: p.car.hp,
+            colorIdx: p.car.colorIdx || 0,
+          });
+        }
       }
 
-      if (players.length === 0 && drones.length === 0) continue;
+      if (players.length === 0 && drones.length === 0 && cars.length === 0) continue;
 
-      const raw = buildSnapshot(players, drones);
+      const raw = buildSnapshot(players, drones, cars);
       const wrapped = wrapBinary(MSG.SNAPSHOT, raw);
       room.broadcastBinary(wrapped, null);
       stats.snap++;

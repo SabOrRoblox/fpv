@@ -1,9 +1,34 @@
+const _isLocal = typeof window !== 'undefined'
+  && (window.location.hostname === 'localhost'
+    || window.location.hostname === '127.0.0.1'
+    || window.location.hostname === ''
+    || /^192\.168\./.test(window.location.hostname)
+    || /^10\./.test(window.location.hostname)
+    || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname));
+
+const _isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
+export const SERVER = {
+  USE_LOCAL: _isLocal,
+  LOCAL_HOST: 'localhost',
+  LOCAL_PORT: 8080,
+  REMOTE_URL: 'wss://server-3b0j.onrender.com',
+
+  getUrl() {
+    if (this.USE_LOCAL) {
+      const scheme = _isSecure ? 'wss' : 'ws';
+      return `${scheme}://${this.LOCAL_HOST}:${this.LOCAL_PORT}`;
+    }
+    return this.REMOTE_URL;
+  },
+};
+
 export const CFG = {
   WORLD_MAX_PLAYERS: 10,
-  NET_RATE: 30,
+  NET_RATE: 20,
   INTERP_DELAY: 0.08,
   EXTRAP_MAX: 0.08,
-  PHYS_DT: 1 / 60,
+  PHYS_DT: 1 / 45,
   GRAVITY: 9.81,
 
   CAMERA_FOV: 75,
@@ -41,7 +66,7 @@ export const CFG = {
   DRONE_CRASH_SPEED: 6,
 
   PLAYER_SPEED: 12.0,
-  PLAYER_RADIUS: 0.4,
+  PLAYER_RADIUS: 0.5,
   PLAYER_ACCEL: 30,
   PLAYER_ANIM_FREQ: 14.0,
   PLAYER_TURN_SPEED: 16.0,

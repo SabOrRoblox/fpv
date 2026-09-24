@@ -55,6 +55,62 @@ export function handleStateDrone(ws, player, payload, stats) {
   }
 }
 
+export function handleStateCar(ws, player, payload, stats, room) {
+  if (player.mode !== 'car') return;
+
+  const dv = new DataView(payload);
+  const id = dv.getUint32(0, true);
+  if (id !== player.id) return;
+
+  const x = dv.getFloat32(4, true);
+  const y = dv.getFloat32(8, true);
+  const z = dv.getFloat32(12, true);
+  const yaw = dv.getFloat32(16, true);
+  const hp = dv.getUint8(20);
+  const colorIdx = dv.getUint8(21);
+
+  stats.stC = (stats.stC || 0) + 1;
+
+  if (!isFinite(x) || !isFinite(y) || !isFinite(z) || !isFinite(yaw)) {
+    stats.fail++;
+    return;
+  }
+
+  const dx = x - player.lastCarX;
+  const dy = y - player.lastCarY;
+  const dz = z - player.lastCarZ;
+  const maxDistSq = 500 * 500;
+  if (dx * dx + dy * dy + dz * dz > maxDistSq) {
+    stats.fail++;
+    player.validationFails++;
+    if (player.validationFails > SERVER_CONFIG.MAX_VALIDATION_FAILS) {
+      log('KICK', `P${player.id} car validation fails`);
+      stats.kicks++;
+      ws.close();
+    }
+    return;
+  }
+
+  player.lastCarX = x;
+  player.lastCarY = y;
+  player.lastCarZ = z;
+  player.car.x = x;
+  player.car.y = y;
+  player.car.z = z;
+  player.car.yaw = yaw;
+  player.car.hp = hp;
+  player.car.colorIdx = colorIdx;
+  player.car.alive = hp > 0;
+  player.hasCar = true;
+  player.validationFails = 0;
+
+  if (Math.abs(dx) < 0.01 && Math.abs(dz) < 0.01) {
+    player.carIdleSince = player.carIdleSince || Date.now();
+  } else {
+    player.carIdleSince = 0;
+  }
+}
+
 export function handleEventCrash(player, room, rawData, payload, stats) {
   const ev = decodeEventCrash(payload);
   stats.crash++;

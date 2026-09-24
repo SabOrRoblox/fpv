@@ -1,0 +1,323 @@
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+#hud.hidden { display: none; }
+
+.hud-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.42) 100%);
+  pointer-events: none;
+}
+
+.hud-hp {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(17, 24, 39, 0.6);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  padding: 8px 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(52, 211, 153, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.hud-hp-label {
+  font-size: 10px;
+  color: #6B7280;
+  letter-spacing: 3px;
+  font-weight: 700;
+}
+
+.hud-hp-bar {
+  width: 140px;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.hp-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #EF4444 0%, #F97316 50%, #34D399 100%);
+  transition: width 0.3s ease-out;
+  border-radius: 4px;
+}
+
+.hud-hp-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: #34D399;
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-tl {
+  position: absolute;
+  top: 58px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.hud-tr {
+  position: absolute;
+  top: 58px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-end;
+}
+
+.hud-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: rgba(17, 24, 39, 0.6);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  padding: 5px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(107, 114, 128, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.hud-l {
+  font-size: 9px;
+  color: #6B7280;
+  letter-spacing: 2px;
+  font-weight: 600;
+}
+
+.hud-v {
+  font-size: 15px;
+  font-weight: 700;
+  color: #34D399;
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  text-align: right;
+}
+
+.hud-u {
+  font-size: 9px;
+  color: #6B7280;
+  font-weight: 500;
+}
+
+.hud-chip {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px;
+  background: rgba(17, 24, 39, 0.6);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border: 1px solid rgba(52, 211, 153, 0.18);
+  border-radius: 12px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #E5E7EB;
+  pointer-events: none;
+  z-index: 60;
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.hud-chip-fps {
+  top: 46px;
+  left: 16px;
+  color: #34D399;
+}
+
+.gauge {
+  position: absolute;
+  width: 110px;
+  height: 110px;
+  pointer-events: none;
+}
+
+.tacho-gauge {
+  bottom: 150px;
+  right: 24px;
+}
+
+.speedo-gauge {
+  bottom: 24px;
+  right: 24px;
+}
+
+.gauge canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.gauge-label {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: #6B7280;
+  font-weight: 700;
+}
+
+.gauge-value {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #34D399;
+  font-variant-numeric: tabular-nums;
+}
+
+.gauge-unit {
+  font-size: 9px;
+  color: #6B7280;
+  margin-left: 3px;
+  font-weight: 500;
+}
+
+.hud-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.crosshair-h,
+.crosshair-v {
+  position: absolute;
+  background: rgba(52, 211, 153, 0.75);
+}
+
+.crosshair-h {
+  top: 50%;
+  left: 28%;
+  right: 28%;
+  height: 1px;
+  transform: translateY(-50%);
+}
+
+.crosshair-v {
+  left: 50%;
+  top: 28%;
+  bottom: 28%;
+  width: 1px;
+  transform: translateX(-50%);
+}
+
+.crosshair-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #34D399;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 6px #34D399;
+}
+
+.hud-hint {
+  position: absolute;
+  bottom: 32%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: #34D399;
+  opacity: 0;
+  transition: opacity 0.3s;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.hud-hint.visible { opacity: 1; }
+
+.car-speedo {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150px;
+  height: 150px;
+  pointer-events: none;
+  z-index: 65;
+}
+
+.car-speedo canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.car-speedo-label {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: #6B7280;
+  font-weight: 700;
+}
+
+.car-speedo-value {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 700;
+  color: #34D399;
+  font-variant-numeric: tabular-nums;
+}
+
+.car-speedo-unit {
+  font-size: 11px;
+  color: #6B7280;
+  margin-left: 4px;
+  font-weight: 500;
+}
+
+@media (max-height: 500px) {
+  .gauge { width: 88px; height: 88px; }
+  .tacho-gauge { bottom: 108px; }
+  .car-speedo { width: 120px; height: 120px; }
+  .car-speedo-value { font-size: 21px; }
+  .hud-hp-bar { width: 110px; }
+}

@@ -1,10 +1,11 @@
 import { MSG, unwrapBinary } from '../../../shared/net/protocol.js';
 
-const RECONNECT_DELAY_BASE = 1000;
-const RECONNECT_DELAY_MAX = 15000;
-const PING_INTERVAL_MS = 1000;
-const STALE_PING_MS = 6000;
-const MAX_FAST_RETRIES = 3;
+const RECONNECT_DELAY_BASE = 2000;
+const RECONNECT_DELAY_MAX = 20000;
+const PING_INTERVAL_MS = 2000;
+const PING_TIMEOUT_MS = 5000;
+const PING_SAMPLES = 5;
+const STALE_PING_MS = 60000;
 
 export class GameSocket {
   constructor(url) {
@@ -28,6 +29,8 @@ export class GameSocket {
     this.pingInterval = null;
     this.lastPongTime = 0;
     this.staleWatchdog = null;
+
+    this._pingSamples = [];
 
     this.online = navigator.onLine;
 
@@ -101,6 +104,8 @@ export class GameSocket {
       this.reconnectDelay = RECONNECT_DELAY_BASE;
       this.lastPongTime = performance.now();
 
+      this._pingSamples.length = 0;
+
       this.sendJSON({ type: 'join', name: this.playerName });
       this._startPing();
       this._startStaleWatchdog();
@@ -133,8 +138,7 @@ export class GameSocket {
             this.emit('validation_fail', msg);
             break;
           case 'pong':
-            this.ping = performance.now() - msg.ts;
-            this.lastPongTime = performance.now();
+            this._onPong(msg.ts);
             break;
           case 'error':
             this._handleServerError(msg);
@@ -176,6 +180,23 @@ export class GameSocket {
     ws.onerror = () => {
       this.emit('ws_error');
     };
+  }
+
+  _onPong(sentAt) {
+    const now = performance.now();
+    this.lastPongTime = now;
+
+    const rtt = now - sentAt;
+    if (!isFinite(rtt) || rtt < 0 || rtt > PING_TIMEOUT_MS) return;
+
+    this._pingSamples.push(rtt);
+    if (this._pingSamples.length > PING_SAMPLES) {
+      this._pingSamples.shift();
+    }
+
+    let sum = 0;
+    for (let i = 0; i < this._pingSamples.length; i++) sum += this._pingSamples[i];
+    this.ping = sum / this._pingSamples.length;
   }
 
   _scheduleReconnect(forceDelay) {
@@ -222,7 +243,7 @@ export class GameSocket {
         this.emit('stale');
         try { this.ws.close(); } catch {}
       }
-    }, 1000);
+    }, 2000);
   }
 
   _stopStaleWatchdog() {
