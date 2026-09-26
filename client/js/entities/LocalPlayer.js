@@ -202,12 +202,43 @@ export class LocalPlayer {
       }
     }
 
-    if (this.physics.position.y < -50) {
-      this.physics.position.y = 0;
-      this.physics.velocity.x = 0;
-      this.physics.velocity.y = 0;
-      this.physics.velocity.z = 0;
+    const gs = GameState;
+if (this.physics.alive && this.physics.position.y < -5) {
+  const died = this.physics.takeDamage(999);
+  if (died) {
+    gs.mode = 'walk';
+    if (gs.localDrone) {
+      gs.localDrone.piloted = false;
+      gs.localDrone.physics.armed = false;
     }
+    if (this.group) this.group.visible = true;
+    if (gs.hud) gs.hud.setMode('walk');
+    if (gs.deathScreen) gs.deathScreen.show('УПАЛ ЗА КАРТУ');
+    if (gs.socket && gs.socket.connected) {
+      gs.socket.sendJSON({ type: 'exit_drone' });
+      gs.socket.sendJSON({ type: 'exit_car' });
+    }
+    if (gs.localPlayer && gs.localPlayer.spawn && gs.collisionWorld) {
+      const spawn = gs.myTeam === 'blue' ? CFG.TEAM_SPAWN_BLUE : CFG.TEAM_SPAWN_RED;
+      let spawnY = null;
+      if (gs.spawnZones && gs.spawnZones.length > 0 && gs.myTeam) {
+        for (const z of gs.spawnZones) {
+          if (z.team !== gs.myTeam) continue;
+          spawnY = z.maxY + 2.0;
+          break;
+        }
+      }
+      gs.localPlayer.spawn(gs.collisionWorld, spawn.x, spawn.z, 0, spawnY);
+    }
+  }
+}
+
+if (this.physics.position.y < -500) {
+  this.physics.position.y = 0;
+  this.physics.velocity.x = 0;
+  this.physics.velocity.y = 0;
+  this.physics.velocity.z = 0;
+}
 
     this.currPos.set(this.physics.position.x, this.physics.position.y, this.physics.position.z);
     this.group.rotation.y = this.physics.yaw;
