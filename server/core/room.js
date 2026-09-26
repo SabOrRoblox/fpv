@@ -3,8 +3,8 @@ export class Room {
     this.id = id;
     this.maxPlayers = maxPlayers;
     this.players = new Map();
-    this.spawnRed = { x: -371.5, z: 380.8 };
-    this.spawnBlue = { x: 365.9, z: -361.6 };
+    this.spawnRed = { x: -642.9, z: 660.6 };
+    this.spawnBlue = { x: 629.1, z: -660.2 };
 
     this._cachedListPayload = null;
     this._cachedTeamsState = null;

@@ -16,8 +16,9 @@ import { DroneSelectMenu } from './ui/droneSelectMenu.js';
 import { TeamSelectMenu } from './ui/teamSelectMenu.js';
 import { setupNetworkHandlers } from './ui/disconnectHandler.js';
 import { Chat } from './ui/chat.js';
-import { placeMap, mergeByMaterial } from './world/mapLoader.js';
+import { placeMap, mergeByMaterial, collectSpawnZones, buildZoneMeshes } from './world/mapLoader.js';
 import { buildCollision } from './world/collisionLoader.js';
+import { showCollisionDebug, hideCollisionDebug } from './world/collisionDebug.js';
 import { CollisionWorld } from './world/collisionWorld.js';
 import { ExplosionFX } from './fx/explosion.js';
 import { Sensitivity } from './core/sensitivity.js';
@@ -33,6 +34,7 @@ import {
 import { setupGameLoop } from './core/loopSetup.js';
 
 const DEBUG = false;
+const DEBUG_COLLISION = false;
 
 initErrorOverlay();
 
@@ -107,18 +109,29 @@ function setLoading(pct, status) {
 async function bootstrap() {
   setLoading(0.05, 'загрузка моделей');
   const gltfs = await assets.loadAll(
-    ['map.glb', 'collision.glb', 'dron1.glb', 'dron2.glb', 'dron3.glb', 'dron4.glb', 'bro.glb', 'car.glb'],
+    ['map.glb', 'col.glb', 'dron1.glb', 'dron2.glb', 'dron3.glb', 'dron4.glb', 'bro.glb', 'car.glb'],
     (p, name) => setLoading(0.05 + p * 0.75, 'загрузка ' + name)
   );
   GameState.allGltfs = gltfs;
 
   setLoading(0.85, 'размещение карты');
   GameState.mapRootRef = placeMap(sceneMgr.scene, gltfs['map.glb']);
+
+  GameState.spawnZones = collectSpawnZones(GameState.mapRootRef);
+  buildZoneMeshes(sceneMgr.scene, GameState.spawnZones);
+
   mergeByMaterial(GameState.mapRootRef);
 
+  console.log('[main] spawn zones:', GameState.spawnZones.length);
+
   setLoading(0.9, 'построение коллизий');
-  GameState.collisionRootRef = buildCollision(gltfs['collision.glb']);
+  GameState.collisionRootRef = buildCollision(gltfs['col.glb']);
   collisionWorld.attachRoot(GameState.collisionRootRef);
+
+  if (DEBUG_COLLISION) {
+    GameState.collisionDebugRef = showCollisionDebug(sceneMgr.scene, GameState.collisionRootRef);
+    console.log('[main] collision debug ON');
+  }
 
   setLoading(0.95, 'создание сущностей');
   GameState.localPlayer = new LocalPlayer(sceneMgr.scene, gltfs['bro.glb']);
@@ -223,6 +236,17 @@ socket.on('welcome', (msg) => {
   if (GameState.localDrone) {
     GameState.localDrone.droneId = localStorage.getItem('selectedDrone') || 'dron1';
   }
+  if (GameState.spawnZones && GameState.spawnZones.length > 0) {
+    socket.sendJSON({
+      type: 'zones',
+      zones: GameState.spawnZones.map(z => ({
+        team: z.team,
+        minX: z.minX, maxX: z.maxX,
+        minY: z.minY, maxY: z.maxY,
+        minZ: z.minZ, maxZ: z.maxZ,
+      })),
+    });
+  }
 });
 
 socket.on('players', (msg) => stateManager.syncWithPlayerList(msg.list));
@@ -305,6 +329,18 @@ socket.on('error', (msg) => {
       if (gs.localPlayer.group) gs.localPlayer.group.visible = true;
       setUIMode('walk', els);
     }
+  } else if (msg.reason === 'in_spawn_zone') {
+    const gs = GameState;
+    if (gs.mode === 'fpv') {
+      gs.localDrone.piloted = false;
+      gs.localDrone.physics.armed = false;
+      gs.localDrone.physics.crashed = false;
+      gs.mode = 'walk';
+      if (gs.localPlayer.group) gs.localPlayer.group.visible = true;
+      setUIMode('walk', els);
+      gs.audio.stopDrone();
+      els.touchCam.resetPitchOnRelease = false;
+    }
   }
 });
 
@@ -366,6 +402,15 @@ els.btnExit.addEventListener('pointerdown', (e) => { e.preventDefault(); exitDro
 els.btnCarEnter.addEventListener('pointerdown', (e) => { e.preventDefault(); enterCar(els); });
 els.btnCarExit.addEventListener('pointerdown', (e) => { e.preventDefault(); exitCar(els); });
 els.btnPos.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); posProbe(els); });
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'c' || e.key === 'C') {
+    if (GameState.collisionDebugRef) {
+      GameState.collisionDebugRef.visible = !GameState.collisionDebugRef.visible;
+      console.log('[main] collision debug:', GameState.collisionDebugRef.visible ? 'ON' : 'OFF');
+    }
+  }
+});
 
 window.addEventListener('beforeunload', () => {
   socket.disconnect();

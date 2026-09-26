@@ -1,14 +1,10 @@
 import { SERVER_CONFIG } from './config.js';
 import { log } from './log.js';
+import { dbgEnterCar, dbgExitCar } from './core/debug.js';
 
 function sendJSON(ws, obj) {
   if (ws.readyState === 1) ws.send(JSON.stringify(obj));
 }
-
-const CAR_COLORS = [
-  { team: 'red', color: 0xe85555 },
-  { team: 'blue', color: 0x5599ff },
-];
 
 function pickColorIdx(player) {
   return player.team === 'blue' ? 1 : 0;
@@ -35,11 +31,17 @@ export function handleEnterCar(ws, player, room, msg) {
   const maxSq = SERVER_CONFIG.ENTER_CAR_MAX_DIST * SERVER_CONFIG.ENTER_CAR_MAX_DIST;
 
   if (distSq > maxSq) {
+    log('ENTER-CAR-FAIL',
+      `P${player.id}`,
+      `dist=${Math.sqrt(distSq).toFixed(1)}`,
+      `max=${SERVER_CONFIG.ENTER_CAR_MAX_DIST}`);
     sendJSON(ws, { type: 'error', reason: 'too_far_from_car' });
     return;
   }
 
   player.mode = 'car';
+  player.resetValidation();
+
   player.car.x = cx;
   player.car.y = cy;
   player.car.z = cz;
@@ -49,12 +51,10 @@ export function handleEnterCar(ws, player, room, msg) {
   player.car.colorIdx = pickColorIdx(player);
   player.carIdleSince = 0;
 
+  player.hasCar = true;
   player.lastCarX = cx;
   player.lastCarY = cy;
   player.lastCarZ = cz;
-
-  player.hasCar = true;
-  player.resetValidation();
 
   sendJSON(ws, { type: 'car_entered' });
   room.broadcastJSON({
@@ -65,16 +65,16 @@ export function handleEnterCar(ws, player, room, msg) {
   });
 
   log('ENTER-CAR', `P${player.id} @ (${cx.toFixed(1)}, ${cz.toFixed(1)})`);
+  dbgEnterCar(player, player.car);
 }
 
 export function handleExitCar(ws, player, room) {
   if (player.mode !== 'car') return;
   player.mode = 'walk';
-  player.hasCar = false;
-  player.carIdleSince = 0;
   player.resetValidation();
   room.broadcastJSON({ type: 'mode', id: player.id, mode: player.mode });
   log('EXIT-CAR', `P${player.id}`);
+  dbgExitCar(player);
 }
 
 export function handleCarReset(ws, player, msg) {
@@ -83,6 +83,8 @@ export function handleCarReset(ws, player, msg) {
   const z = typeof msg.z === 'number' ? msg.z : player.car.z;
   const yaw = typeof msg.yaw === 'number' ? msg.yaw : player.car.yaw;
 
+  player.resetValidation();
+
   player.car.x = x;
   player.car.y = y;
   player.car.z = z;
@@ -90,13 +92,11 @@ export function handleCarReset(ws, player, msg) {
   player.car.hp = 200;
   player.car.alive = true;
 
+  player.hasCar = true;
   player.lastCarX = x;
   player.lastCarY = y;
   player.lastCarZ = z;
-
-  player.hasCar = true;
   player.carIdleSince = 0;
-  player.resetValidation();
 }
 
 export function checkCarIdle(roomManager) {

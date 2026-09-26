@@ -1,4 +1,5 @@
 import { log } from './log.js';
+import { dbgTeam } from './core/debug.js';
 
 function sendJSON(ws, obj) {
   if (ws.readyState === 1) ws.send(JSON.stringify(obj));
@@ -8,6 +9,7 @@ export function handleChooseTeam(ws, player, room, msg) {
   const requested = msg.team === 'red' ? 'red' : msg.team === 'blue' ? 'blue' : null;
 
   if (!requested) {
+    log('TEAM-REJECT', `P${player.id} bad_team: ${msg.team}`);
     sendJSON(ws, { type: 'team_reject', reason: 'bad_team' });
     return;
   }
@@ -27,6 +29,7 @@ export function handleChooseTeam(ws, player, room, msg) {
   }
 
   player.team = requested;
+  player.resetValidation();
   room.markDirty();
 
   const spawn = requested === 'red' ? room.spawnRed : room.spawnBlue;
@@ -39,4 +42,5 @@ export function handleChooseTeam(ws, player, room, msg) {
   room.broadcastJSON({ type: 'team_counts', red: c.red, blue: c.blue });
 
   log('TEAM', `P${player.id} → ${requested} (${c.red}/${c.blue})`);
+  dbgTeam(player, requested);
 }

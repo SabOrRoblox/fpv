@@ -7,7 +7,7 @@ function sendJSON(ws, obj) {
   if (ws.readyState === 1) ws.send(JSON.stringify(obj));
 }
 
-export function handleJSON(ws, player, room, msg, stats, roomManager) {
+export function handleJSON(ws, player, room, msg, stats, roomManager, spawnZones) {
   switch (msg.type) {
     case 'ping':
       sendJSON(ws, { type: 'pong', ts: msg.ts });
@@ -25,7 +25,7 @@ export function handleJSON(ws, player, room, msg, stats, roomManager) {
       handleChooseTeam(ws, player, room, msg);
       return;
     case 'enter_drone':
-      handleEnterDrone(ws, player, room, msg);
+      handleEnterDrone(ws, player, room, msg, spawnZones);
       return;
     case 'exit_drone':
       handleExitDrone(ws, player, room);

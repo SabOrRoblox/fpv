@@ -7,12 +7,15 @@ import { validateCrash } from './validation/crashValidator.js';
 import { validateHit } from './validation/hitValidator.js';
 import { SERVER_CONFIG } from './config.js';
 import { log } from './log.js';
+import { dbgIn, dbgValidate } from './core/debug.js';
 
 export function handleStatePlayer(ws, player, payload, stats) {
   if (player.mode !== 'walk') return;
 
   const s = decodePlayerState(new DataView(payload), 0);
   stats.stP++;
+
+  dbgIn(player, 'STATE_PLAYER', s);
 
   if (validatePlayerState(player, s.x, s.y, s.z)) {
     player.lastPX = s.x; player.lastPY = s.y; player.lastPZ = s.z;
@@ -22,9 +25,19 @@ export function handleStatePlayer(ws, player, payload, stats) {
   } else {
     stats.fail++;
     player.validationFails++;
+    log('VALIDATE-FAIL-PLAYER',
+      `P${player.id}`,
+      `pos=(${s.x.toFixed(2)},${s.y.toFixed(2)},${s.z.toFixed(2)})`,
+      `last=(${player.lastPX.toFixed(2)},${player.lastPY.toFixed(2)},${player.lastPZ.toFixed(2)})`,
+      `dist=${Math.hypot(s.x - player.lastPX, s.y - player.lastPY, s.z - player.lastPZ).toFixed(2)}`,
+      `fails=${player.validationFails}/${SERVER_CONFIG.MAX_VALIDATION_FAILS}`,
+      `hasState=${player.hasPlayerState}`);
+    dbgValidate(player, 'STATE_PLAYER', false,
+      `pos=(${s.x.toFixed(2)},${s.y.toFixed(2)},${s.z.toFixed(2)}) last=(${player.lastPX.toFixed(2)},${player.lastPY.toFixed(2)},${player.lastPZ.toFixed(2)})`);
     if (player.validationFails > SERVER_CONFIG.MAX_VALIDATION_FAILS) {
-      log('KICK', `P${player.id} too many validation fails (player)`);
+      log('KICK', `P${player.id} too many validation fails (player), last pos=(${s.x},${s.y},${s.z})`);
       stats.kicks++;
+      try { ws.send(JSON.stringify({ type: 'kick', reason: 'validation_player' })); } catch {}
       ws.close();
     }
   }
@@ -35,6 +48,8 @@ export function handleStateDrone(ws, player, payload, stats) {
 
   const s = decodeDroneState(new DataView(payload), 0);
   stats.stD++;
+
+  dbgIn(player, 'STATE_DRONE', s);
 
   if (validateDroneState(player, s.x, s.y, s.z)) {
     player.lastDX = s.x; player.lastDY = s.y; player.lastDZ = s.z;
@@ -47,9 +62,19 @@ export function handleStateDrone(ws, player, payload, stats) {
   } else {
     stats.fail++;
     player.validationFails++;
+    log('VALIDATE-FAIL-DRONE',
+      `P${player.id}`,
+      `pos=(${s.x.toFixed(2)},${s.y.toFixed(2)},${s.z.toFixed(2)})`,
+      `last=(${player.lastDX.toFixed(2)},${player.lastDY.toFixed(2)},${player.lastDZ.toFixed(2)})`,
+      `dist=${Math.hypot(s.x - player.lastDX, s.y - player.lastDY, s.z - player.lastDZ).toFixed(2)}`,
+      `fails=${player.validationFails}/${SERVER_CONFIG.MAX_VALIDATION_FAILS}`,
+      `hasState=${player.hasDroneState}`);
+    dbgValidate(player, 'STATE_DRONE', false,
+      `pos=(${s.x.toFixed(2)},${s.y.toFixed(2)},${s.z.toFixed(2)}) last=(${player.lastDX.toFixed(2)},${player.lastDY.toFixed(2)},${player.lastDZ.toFixed(2)})`);
     if (player.validationFails > SERVER_CONFIG.MAX_VALIDATION_FAILS) {
-      log('KICK', `P${player.id} too many validation fails (drone)`);
+      log('KICK', `P${player.id} too many validation fails (drone), last pos=(${s.x},${s.y},${s.z})`);
       stats.kicks++;
+      try { ws.send(JSON.stringify({ type: 'kick', reason: 'validation_drone' })); } catch {}
       ws.close();
     }
   }
@@ -71,8 +96,11 @@ export function handleStateCar(ws, player, payload, stats, room) {
 
   stats.stC = (stats.stC || 0) + 1;
 
+  dbgIn(player, 'STATE_CAR', { x, y, z, yaw, hp });
+
   if (!isFinite(x) || !isFinite(y) || !isFinite(z) || !isFinite(yaw)) {
     stats.fail++;
+    log('VALIDATE-FAIL-CAR', `P${player.id} NaN pos=(${x},${y},${z},${yaw})`);
     return;
   }
 
@@ -83,9 +111,18 @@ export function handleStateCar(ws, player, payload, stats, room) {
   if (dx * dx + dy * dy + dz * dz > maxDistSq) {
     stats.fail++;
     player.validationFails++;
+    log('VALIDATE-FAIL-CAR',
+      `P${player.id}`,
+      `pos=(${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)})`,
+      `last=(${player.lastCarX.toFixed(2)},${player.lastCarY.toFixed(2)},${player.lastCarZ.toFixed(2)})`,
+      `dist=${Math.hypot(dx, dy, dz).toFixed(2)}`,
+      `fails=${player.validationFails}/${SERVER_CONFIG.MAX_VALIDATION_FAILS}`);
+    dbgValidate(player, 'STATE_CAR', false,
+      `pos=(${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}) last=(${player.lastCarX.toFixed(2)},${player.lastCarY.toFixed(2)},${player.lastCarZ.toFixed(2)})`);
     if (player.validationFails > SERVER_CONFIG.MAX_VALIDATION_FAILS) {
-      log('KICK', `P${player.id} car validation fails`);
+      log('KICK', `P${player.id} too many validation fails (car)`);
       stats.kicks++;
+      try { ws.send(JSON.stringify({ type: 'kick', reason: 'validation_car' })); } catch {}
       ws.close();
     }
     return;
@@ -115,8 +152,17 @@ export function handleEventCrash(player, room, rawData, payload, stats) {
   const ev = decodeEventCrash(payload);
   stats.crash++;
 
+  dbgIn(player, 'EVENT_CRASH', ev);
+
   if (!validateCrash(player, ev.x, player.drone.y, ev.z)) {
     stats.fail++;
+    log('VALIDATE-FAIL-CRASH',
+      `P${player.id}`,
+      `crash=(${ev.x.toFixed(2)},${ev.z.toFixed(2)})`,
+      `drone=(${player.drone.x.toFixed(2)},${player.drone.y.toFixed(2)},${player.drone.z.toFixed(2)})`,
+      `dist=${Math.hypot(ev.x - player.drone.x, ev.z - player.drone.z).toFixed(2)}`);
+    dbgValidate(player, 'EVENT_CRASH', false,
+      `crash=(${ev.x.toFixed(2)},${ev.z.toFixed(2)}) drone=(${player.drone.x.toFixed(2)},${player.drone.y.toFixed(2)},${player.drone.z.toFixed(2)})`);
     return;
   }
 
@@ -134,9 +180,19 @@ export function handleEventHit(player, room, rawData, payload, stats) {
   const ev = decodeEventHit(payload);
   stats.hit++;
 
+  dbgIn(player, 'EVENT_HIT', ev);
+
   const victim = room.get(ev.victimId);
   if (!victim || !validateHit(player, victim, ev.damage)) {
     stats.fail++;
+    log('VALIDATE-FAIL-HIT',
+      `P${player.id} → P${ev.victimId}`,
+      `damage=${ev.damage}`,
+      `victimExists=${!!victim}`,
+      `victimAlive=${victim ? victim.alive : '?'}`,
+      `shooterAlive=${player.alive}`);
+    dbgValidate(player, 'EVENT_HIT', false,
+      `victim=P${ev.victimId} dmg=${ev.damage} exists=${!!victim}`);
     return;
   }
 

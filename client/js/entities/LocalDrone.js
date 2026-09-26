@@ -1,9 +1,8 @@
-
-
 import * as THREE from 'three';
 import { CFG } from '../../../shared/config/config.js';
 import { DronePhysics } from '../../../shared/physics/dronePhysics.js';
 import { PropellerAnimator } from '../render/propellerAnimator.js';
+import { GameState } from '../core/gameState.js';
 
 export class LocalDrone {
   constructor(scene, gltf, audioManager) {
@@ -112,12 +111,26 @@ export class LocalDrone {
     this.physics.piloted = this.piloted;
     this.physics.step(dt, input);
 
+    const gs = GameState;
+    if (gs.spawnZones && gs.spawnZones.length > 0) {
+      const px = this.physics.position.x;
+      const py = this.physics.position.y;
+      const pz = this.physics.position.z;
+      for (let i = 0; i < gs.spawnZones.length; i++) {
+        const z = gs.spawnZones[i];
+        if (px >= z.minX && px <= z.maxX && py >= z.minY && py <= z.maxY && pz >= z.minZ && pz <= z.maxZ) {
+          this.physics.crashed = true;
+          break;
+        }
+      }
+    }
+
     if (collisionWorld && collisionWorld.isReady()) {
       const px = this.physics.position.x;
       const pz = this.physics.position.z;
       const py = this.physics.position.y;
 
-      const fromY = py + 1.5;
+      const fromY = py + 5.0;
       const toY = py - 50.0;
       const gY = collisionWorld.raycastDown(px, pz, fromY, toY);
       if (gY !== null) {
@@ -134,6 +147,28 @@ export class LocalDrone {
             this.physics.velocity
           );
           if (impact > CFG.DRONE_CRASH_SPEED * 2) this.physics.crashed = true;
+        }
+      }
+    }
+
+    if (!this.physics.crashed && this.piloted) {
+      if (gs.localCar && gs.mode !== 'car') {
+        const carPh = gs.localCar.physics;
+        if (carPh.alive) {
+          const cx = carPh.position.x;
+          const cy = carPh.position.y + 0.8;
+          const cz = carPh.position.z;
+          const dx = this.physics.position.x - cx;
+          const dy = this.physics.position.y - cy;
+          const dz = this.physics.position.z - cz;
+          const distSq = dx * dx + dy * dy + dz * dz;
+          const hitR = CFG.DRONE_RADIUS + 1.5;
+          if (distSq < hitR * hitR) {
+            const speed = this.physics.getSpeed();
+            if (speed > CFG.DRONE_CRASH_SPEED * 1.5) {
+              this.physics.crashed = true;
+            }
+          }
         }
       }
     }

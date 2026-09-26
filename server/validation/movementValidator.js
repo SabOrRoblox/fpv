@@ -1,11 +1,11 @@
-const MAX_PLAYER_DIST_SQ = 100 * 100;
-const MAX_PLAYER_VERT = 200;
-const MAX_DRONE_DIST_SQ = 500 * 500;
-const MAX_DRONE_VERT = 500;
+const MAX_PLAYER_DIST_SQ = 500 * 500;
+const MAX_PLAYER_VERT = 500;
+const MAX_DRONE_DIST_SQ = 1000 * 1000;
+const MAX_DRONE_VERT = 1000;
 
 export function validatePlayerState(player, x, y, z) {
   if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return false;
-  if (y < -100 || y > 1000) return false;
+  if (y < -100 || y > 5000) return false;
 
   if (!player.hasPlayerState) {
     player.lastPX = x; player.lastPY = y; player.lastPZ = z;
@@ -24,7 +24,7 @@ export function validatePlayerState(player, x, y, z) {
 
 export function validateDroneState(player, x, y, z) {
   if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return false;
-  if (y < -100 || y > 2000) return false;
+  if (y < -100 || y > 5000) return false;
 
   if (!player.hasDroneState) {
     player.lastDX = x; player.lastDY = y; player.lastDZ = z;

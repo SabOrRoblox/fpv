@@ -46,6 +46,7 @@ export function createSnapshotModule(roomManager, stats) {
       const wrapped = wrapBinary(MSG.SNAPSHOT, raw);
       room.broadcastBinary(wrapped, null);
       stats.snap++;
+      stats.snapBytes += wrapped.byteLength;
     }
   }
 

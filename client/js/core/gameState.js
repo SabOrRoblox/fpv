@@ -3,6 +3,7 @@ export const GameState = {
   roomId: null,
   localPlayer: null,
   localDrone: null,
+  localCar: null,
   allGltfs: {},
   mapRootRef: null,
   collisionRootRef: null,
@@ -21,4 +22,5 @@ export const GameState = {
   myTeam: null,
   mySpawn: null,
   remoteTeams: {},
+  spawnZones: [],
 };

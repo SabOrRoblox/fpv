@@ -3,6 +3,43 @@ import { CFG } from '../../../shared/config/config.js';
 import { GameState } from './gameState.js';
 import { MSG, encodeEventCrash, wrapBinary } from '../../../shared/net/protocol.js';
 
+export function isInsideZone(pos, zone) {
+  return pos.x >= zone.minX && pos.x <= zone.maxX
+    && pos.y >= zone.minY && pos.y <= zone.maxY
+    && pos.z >= zone.minZ && pos.z <= zone.maxZ;
+}
+
+export function isInsideAnyZone(pos, zones, team) {
+  for (const zone of zones) {
+    if (zone.team === team) continue;
+    if (isInsideZone(pos, zone)) return zone;
+  }
+  return null;
+}
+
+export function pushOutOfZone(pos, zone) {
+  const cx = (zone.minX + zone.maxX) * 0.5;
+  const cz = (zone.minZ + zone.maxZ) * 0.5;
+  const hw = (zone.maxX - zone.minX) * 0.5;
+  const hd = (zone.maxZ - zone.minZ) * 0.5;
+
+  const dx = pos.x - cx;
+  const dz = pos.z - cz;
+
+  const overX = Math.abs(dx) - hw;
+  const overZ = Math.abs(dz) - hd;
+
+  if (overX > overZ) {
+    pos.x = cx + Math.sign(dx || 1) * (hw + 0.05);
+  } else {
+    pos.z = cz + Math.sign(dz || 1) * (hd + 0.05);
+  }
+
+  if (pos.y > zone.minY && pos.y < zone.maxY) {
+    pos.y = zone.maxY + 0.05;
+  }
+}
+
 export function distToPad() {
   const gs = GameState;
   if (!gs.localPlayer || !gs.localDrone) return 999;
@@ -68,8 +105,22 @@ export function respawnAll(els, spawnOverride) {
   const gs = GameState;
   const spawn = spawnOverride || (gs.myTeam === 'blue' ? CFG.TEAM_SPAWN_BLUE : CFG.TEAM_SPAWN_RED);
 
+  let spawnX = spawn.x;
+  let spawnZ = spawn.z;
+  let spawnY = null;
+
+  if (gs.spawnZones && gs.spawnZones.length > 0 && gs.myTeam) {
+    for (const z of gs.spawnZones) {
+      if (z.team !== gs.myTeam) continue;
+      spawnX = (z.minX + z.maxX) * 0.5;
+      spawnZ = (z.minZ + z.maxZ) * 0.5;
+      spawnY = z.maxY + 2.0;
+      break;
+    }
+  }
+
   gs.lastPlayerPos = null;
-  gs.localPlayer.spawn(gs.collisionWorld, spawn.x, spawn.z, 0);
+  gs.localPlayer.spawn(gs.collisionWorld, spawnX, spawnZ, 0, spawnY);
   if (gs.localPlayer.group) gs.localPlayer.group.visible = true;
 
   const padX = gs.myTeam === 'blue' ? CFG.DRONE_PAD_POS_BLUE.x : CFG.DRONE_PAD_POS.x;
@@ -77,8 +128,8 @@ export function respawnAll(els, spawnOverride) {
   gs.localDrone.resetToPos(gs.collisionWorld, { x: padX, y: 0, z: padZ }, 0);
 
   if (gs.localCar) {
-    const carX = spawn.x + 5;
-    const carZ = spawn.z;
+    const carX = spawnX + 5;
+    const carZ = spawnZ;
     gs.localCar.spawn(gs.collisionWorld, carX, carZ, 0);
   }
 
@@ -105,6 +156,11 @@ export function enterDrone(els) {
   if (gs.mode !== 'walk') return;
   if (!gs.localPlayer.alive) return;
   if (distToPad() > CFG.PAD_RADIUS + 2.0) return;
+
+  if (gs.spawnZones && gs.spawnZones.length > 0 && gs.myTeam) {
+    const enemyZone = isInsideAnyZone(gs.localPlayer.position, gs.spawnZones, gs.myTeam);
+    if (enemyZone) return;
+  }
 
   gs.lastPlayerPos = {
     x: gs.localPlayer.position.x,
@@ -219,6 +275,11 @@ export function enterCar(els) {
   if (!gs.localCar) return;
   if (distToCar() > 4.0) return;
 
+  if (gs.spawnZones && gs.spawnZones.length > 0 && gs.myTeam) {
+    const enemyZone = isInsideAnyZone(gs.localPlayer.position, gs.spawnZones, gs.myTeam);
+    if (enemyZone) return;
+  }
+
   gs.lastPlayerPos = {
     x: gs.localPlayer.position.x,
     y: gs.localPlayer.position.y,
@@ -297,9 +358,21 @@ export function exitCar(els) {
 export function handleExplosionDamage(center, radius, damage, els) {
   const gs = GameState;
   if (!gs.localPlayer || !gs.localPlayer.alive) return;
-  const dx = gs.localPlayer.position.x - center.x;
-  const dy = (gs.localPlayer.position.y + 0.9) - center.y;
-  const dz = gs.localPlayer.position.z - center.z;
+
+  let px, py, pz;
+  if (gs.mode === 'car' && gs.localCar) {
+    px = gs.localCar.position.x;
+    py = gs.localCar.position.y + 0.9;
+    pz = gs.localCar.position.z;
+  } else {
+    px = gs.localPlayer.position.x;
+    py = gs.localPlayer.position.y + 0.9;
+    pz = gs.localPlayer.position.z;
+  }
+
+  const dx = px - center.x;
+  const dy = py - center.y;
+  const dz = pz - center.z;
   const dist = Math.hypot(dx, dy, dz);
   if (dist > radius) return;
   const t = dist / radius;

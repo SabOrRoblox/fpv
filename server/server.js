@@ -11,15 +11,24 @@ import { createSnapshotModule } from './snapshot.js';
 import { checkCarIdle } from './carManager.js';
 import { SERVER_CONFIG } from './config.js';
 import { log } from './log.js';
+import {
+  enableDebug, dbgJoin, dbgLeave, dbgPacket,
+  dbgSnapshot, dbgZoneAccepted,
+} from './core/debug.js';
+
+const DEBUG = true;
+
+enableDebug(DEBUG);
 
 const roomManager = new RoomManager(SERVER_CONFIG.MAX_PLAYERS_PER_ROOM);
 const wss = new WebSocketServer({ port: SERVER_CONFIG.PORT });
 
 let nextPlayerId = 1;
+let spawnZones = [];
 
 const stats = {
   conn: 0, joins: 0, leaves: 0, in: 0, out: 0,
-  stP: 0, stD: 0, stC: 0, crash: 0, hit: 0, snap: 0, fail: 0, kicks: 0,
+  stP: 0, stD: 0, stC: 0, crash: 0, hit: 0, snap: 0, snapBytes: 0, fail: 0, kicks: 0,
 };
 
 function sendJSON(ws, obj) {
@@ -83,6 +92,7 @@ function handleJoin(ws, msg) {
   room.broadcastJSON({ type: 'team_counts', red: c.red, blue: c.blue });
 
   log('JOIN', `P${id} "${name}" → ${room.id} (${room.count()}/${room.maxPlayers})`);
+  dbgJoin(player, room);
 }
 
 function handleLeave(ws) {
@@ -106,6 +116,7 @@ function handleLeave(ws) {
 
   const tag = player._kicked ? 'KICKED' : 'LEAVE';
   log(tag, `P${player.id} "${player.name}"`);
+  dbgLeave(player, player._kicked ? 'kicked' : 'close');
   ws.player = null;
 }
 
@@ -116,6 +127,11 @@ wss.on('connection', (ws) => {
 
   ws.on('message', (data, isBinary) => {
     stats.in++;
+
+    if (DEBUG && data) {
+      const size = data.byteLength || (data.length || 0);
+      dbgPacket(ws.player, 'IN', isBinary ? 'binary' : 'json', size);
+    }
 
     if (!ws.player) {
       if (isBinary) return;
@@ -129,8 +145,9 @@ wss.on('connection', (ws) => {
     const player = ws.player;
 
     if (!player.checkRate()) {
-      log('KICK-RATE', `P${player.id} pkt > ${SERVER_CONFIG.MAX_PACKETS_PER_SEC}/s`);
+      log('KICK-RATE', `P${player.id} pkt > ${SERVER_CONFIG.MAX_PACKETS_PER_SEC}/s, count=${player.pktCount}`);
       stats.kicks++;
+      try { ws.send(JSON.stringify({ type: 'kick', reason: 'rate' })); } catch {}
       ws.close();
       return;
     }
@@ -154,11 +171,32 @@ wss.on('connection', (ws) => {
 
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
-    handleJSON(ws, player, room, msg, stats, roomManager);
+
+    if (msg.type === 'zones') {
+      if (Array.isArray(msg.zones) && msg.zones.length > 0 && spawnZones.length === 0) {
+        spawnZones = msg.zones;
+        log('ZONES', `received ${spawnZones.length} zones`);
+        for (const z of spawnZones) {
+          log('ZONES', `  ${z.team} X[${z.minX.toFixed(1)}..${z.maxX.toFixed(1)}] Y[${z.minY.toFixed(1)}..${z.maxY.toFixed(1)}] Z[${z.minZ.toFixed(1)}..${z.maxZ.toFixed(1)}]`);
+        }
+        dbgZoneAccepted(spawnZones);
+      }
+      return;
+    }
+
+    handleJSON(ws, player, room, msg, stats, roomManager, spawnZones);
   });
 
-  ws.on('close', () => handleLeave(ws));
-  ws.on('error', (err) => log('WS-ERR', `P${ws.player ? ws.player.id : '?'}: ${err.message}`));
+  ws.on('close', (code, reason) => {
+    const pid = ws.player ? `P${ws.player.id}` : 'unknown';
+    log('CLOSE', `${pid} code=${code} reason=${reason ? reason.toString().slice(0, 80) : '-'}`);
+    handleLeave(ws);
+  });
+
+  ws.on('error', (err) => {
+    const pid = ws.player ? `P${ws.player.id}` : 'unknown';
+    log('WS-ERR', `${pid}: ${err.message}`, err.code || '');
+  });
 });
 
 const snapshot = createSnapshotModule(roomManager, stats);
@@ -169,6 +207,9 @@ function snapshotLoop() {
   const start = Date.now();
   snapshot.tick();
   const elapsed = Date.now() - start;
+  if (DEBUG) {
+    dbgSnapshot(roomManager, stats.snapBytes);
+  }
   const interval = 1000 / SERVER_CONFIG.SNAPSHOT_HZ;
   const delay = Math.max(0, interval - elapsed);
   setTimeout(snapshotLoop, delay);
@@ -176,7 +217,7 @@ function snapshotLoop() {
 snapshotLoop();
 
 setInterval(() => roomManager.checkTimeouts(), SERVER_CONFIG.CLEANUP_INTERVAL_MS);
-setInterval(() => checkCarIdle(roomManager), 1000);
+setInterval(() => checkCarIdle(roomManager), 5000);
 
 log('server', `ws listening on :${SERVER_CONFIG.PORT}`);
 

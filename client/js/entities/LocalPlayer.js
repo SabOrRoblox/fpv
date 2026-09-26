@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { PlayerPhysics } from '../../../shared/physics/playerPhysics.js';
 import { CFG } from '../../../shared/config/config.js';
+import { GameState } from '../core/gameState.js';
+import { isInsideAnyZone, pushOutOfZone } from '../core/systems.js';
 
 const SCALE = 4.0;
 const CAPSULE_RADIUS = 0.4;
@@ -100,12 +102,20 @@ export class LocalPlayer {
     return pivot;
   }
 
-  spawn(collisionWorld, x, z, yaw = 0) {
-    let y = 0;
+  spawn(collisionWorld, x, z, yaw = 0, forcedY = null) {
+    let y = forcedY !== null ? forcedY : 0;
+
     if (collisionWorld && collisionWorld.isReady()) {
-      const gY = collisionWorld.raycastDown(x, z, 500, -50);
-      if (gY !== null) y = gY + 0.1;
+      const fromY = (forcedY !== null ? forcedY : 500) + 10;
+      const toY = -50;
+      const gY = collisionWorld.raycastDown(x, z, fromY, toY);
+      if (gY !== null) {
+        y = gY + 0.1;
+      } else if (forcedY !== null) {
+        y = forcedY;
+      }
     }
+
     this.physics.reset({ x, y, z }, yaw);
     this.group.position.set(x, y, z);
     this.group.rotation.y = yaw;
@@ -157,7 +167,7 @@ export class LocalPlayer {
       const dxc = Math.abs(px - this._cachedGYX);
       const dzc = Math.abs(pz - this._cachedGYZ);
 
-      const fromY = py + 1.5;
+      const fromY = py + 5.0;
       const toY = py - 50.0;
 
       if (this._cachedGY === null || dxc > 0.4 || dzc > 0.4) {
@@ -173,6 +183,22 @@ export class LocalPlayer {
           this.physics.position.y = minY;
           if (this.physics.velocity.y < 0) this.physics.velocity.y = 0;
         }
+      } else {
+        const floorY = 0.1;
+        if (this.physics.position.y < floorY) {
+          this.physics.position.y = floorY;
+          if (this.physics.velocity.y < 0) this.physics.velocity.y = 0;
+        }
+      }
+    }
+
+    const gs = GameState;
+    if (gs.spawnZones && gs.spawnZones.length > 0 && gs.myTeam) {
+      const enemyZone = isInsideAnyZone(this.physics.position, gs.spawnZones, gs.myTeam);
+      if (enemyZone) {
+        pushOutOfZone(this.physics.position, enemyZone);
+        this.physics.velocity.x *= 0.5;
+        this.physics.velocity.z *= 0.5;
       }
     }
 

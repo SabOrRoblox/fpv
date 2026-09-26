@@ -78,11 +78,11 @@ export const CFG = {
 
   PAD_RADIUS: 2.5,
 
-  TEAM_SPAWN_RED: { x: -371.5, z: 380.8 },
-  TEAM_SPAWN_BLUE: { x: 365.9, z: -361.6 },
+  TEAM_SPAWN_RED: { x: -642.9, z: 660.6 },
+  TEAM_SPAWN_BLUE: { x: 629.1, z: -660.2 },
 
-  DRONE_PAD_POS: { x: -367.0, z: 380.8 },
-  DRONE_PAD_POS_BLUE: { x: 361.0, z: -361.6 },
+  DRONE_PAD_POS: { x: -642.9, z: 660.6 },
+  DRONE_PAD_POS_BLUE: { x: 629.1, z: -660.2 },
   DRONE_SPAWN_AHEAD: 8.0,
 
   DEFAULT_DRONE_PARAMS: {
