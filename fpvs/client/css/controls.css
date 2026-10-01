@@ -1,0 +1,390 @@
+/* ============ SIDE BUTTONS ============ */
+#side-buttons {
+  position: fixed;
+  right: 14px;
+  top: 58px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 80;
+  pointer-events: auto;
+}
+
+.side-btn {
+  width: 92px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(107, 114, 128, 0.35);
+  background: rgba(17, 24, 39, 0.6);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  color: #E5E7EB;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  -webkit-appearance: none;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.side-btn:active {
+  background: rgba(107, 114, 128, 0.2);
+  transform: scale(0.96);
+}
+
+.side-btn.disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.side-btn-pos {
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #34D399;
+  background: rgba(52, 211, 153, 0.06);
+}
+
+.side-btn-pos:active {
+  background: rgba(52, 211, 153, 0.18);
+}
+
+.side-btn-car {
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #34D399;
+  background: rgba(52, 211, 153, 0.06);
+}
+
+.side-btn-car:active {
+  background: rgba(52, 211, 153, 0.18);
+}
+
+/* ============ CHAT FAB (квадрат, внизу по центру) ============ */
+.chat-fab {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  background: rgba(17, 24, 39, 0.5);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  color: #34D399;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  -webkit-appearance: none;
+  z-index: 82;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  transition: transform 0.1s, background 0.15s, box-shadow 0.15s;
+  opacity: 0.85;
+}
+
+.chat-fab:active {
+  transform: translateX(-50%) scale(0.92);
+  background: rgba(52, 211, 153, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 24px rgba(52, 211, 153, 0.35);
+}
+
+.chat-fab svg {
+  width: 24px;
+  height: 24px;
+}
+
+.chat-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #EF4444;
+  border: 2px solid #111827;
+  box-shadow: 0 0 8px #EF4444;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* ============ JOYSTICK ============ */
+.joystick {
+  position: fixed;
+  width: 150px;
+  height: 150px;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 70;
+}
+
+#joy-move {
+  bottom: 30px;
+  left: 30px;
+}
+
+.joystick-base {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid rgba(52, 211, 153, 0.28);
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(52, 211, 153, 0.06) 0%, rgba(52, 211, 153, 0.01) 70%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.joystick-ring {
+  position: absolute;
+  inset: 18%;
+  border: 1px dashed rgba(52, 211, 153, 0.2);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.joystick-knob {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border: 1.5px solid rgba(52, 211, 153, 0.65);
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(52, 211, 153, 0.32) 0%, rgba(52, 211, 153, 0.12) 100%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 16px rgba(52, 211, 153, 0.25);
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition: background 0.1s;
+  pointer-events: none;
+}
+
+.joystick.active .joystick-knob {
+  background: radial-gradient(circle at 30% 30%, rgba(52, 211, 153, 0.55) 0%, rgba(52, 211, 153, 0.25) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 24px rgba(52, 211, 153, 0.5);
+}
+
+.joystick-label {
+  position: absolute;
+  font-size: 10px;
+  color: rgba(52, 211, 153, 0.5);
+  pointer-events: none;
+  font-weight: 700;
+}
+
+.joystick-label-top { top: 3px; left: 50%; transform: translateX(-50%); }
+.joystick-label-bottom { bottom: 3px; left: 50%; transform: translateX(-50%); }
+.joystick-label-left { left: 5px; top: 50%; transform: translateY(-50%); }
+.joystick-label-right { right: 5px; top: 50%; transform: translateY(-50%); }
+
+/* ============ CYLINDERS ============ */
+#drone-cylinder {
+  position: fixed;
+  bottom: 24px;
+  left: 30px;
+  width: 76px;
+  height: 210px;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.car-throttle {
+  position: fixed;
+  bottom: 24px;
+  left: 30px;
+  width: 76px;
+  height: 210px;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.cyl-track {
+  position: relative;
+  width: 64px;
+  height: 190px;
+  border: 1.5px solid rgba(52, 211, 153, 0.35);
+  border-radius: 32px;
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.05) 0%, rgba(52, 211, 153, 0.01) 100%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.cyl-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(180deg, transparent 0%, rgba(52, 211, 153, 0.08) 50%, transparent 100%);
+  background-size: 100% 22px;
+  background-repeat: repeat-y;
+}
+
+.cyl-ball {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(52, 211, 153, 0.4) 0%, rgba(52, 211, 153, 0.15) 100%);
+  border: 1.5px solid rgba(52, 211, 153, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 18px rgba(52, 211, 153, 0.3);
+  transition: background 0.1s;
+  pointer-events: none;
+}
+
+.cyl-ball.active {
+  background: radial-gradient(circle at 30% 30%, rgba(52, 211, 153, 0.75) 0%, rgba(52, 211, 153, 0.4) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 28px rgba(52, 211, 153, 0.6);
+}
+
+.cyl-label-top,
+.cyl-label-bottom {
+  position: absolute;
+  font-size: 9px;
+  color: rgba(52, 211, 153, 0.6);
+  letter-spacing: 2px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.cyl-label-top { top: -18px; }
+.cyl-label-bottom { bottom: -18px; }
+
+/* ============ STEER BUTTONS ============ */
+.car-steer {
+  position: fixed;
+  bottom: 50px;
+  right: 24px;
+  display: flex;
+  gap: 16px;
+  z-index: 70;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.steer-btn {
+  width: 92px;
+  height: 92px;
+  border-radius: 22px;
+  border: 1.5px solid rgba(52, 211, 153, 0.5);
+  background: rgba(52, 211, 153, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #34D399;
+  font-family: inherit;
+  font-size: 28px;
+  font-weight: 700;
+  -webkit-appearance: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  transition: transform 0.08s, background 0.08s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.steer-btn.active,
+.steer-btn:active {
+  transform: scale(0.92);
+  background: rgba(52, 211, 153, 0.25);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 28px rgba(52, 211, 153, 0.45);
+}
+
+/* ============ BIG ACTION BUTTONS ============ */
+.action-btn {
+  position: fixed;
+  border-radius: 20px;
+  border: 1.5px solid rgba(52, 211, 153, 0.5);
+  background: rgba(52, 211, 153, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #34D399;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  pointer-events: auto;
+  -webkit-appearance: none;
+  z-index: 80;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  transition: transform 0.1s, background 0.15s;
+}
+
+.action-btn:active {
+  transform: scale(0.94);
+  background: rgba(52, 211, 153, 0.25);
+}
+
+.action-btn.hidden { display: none; }
+
+.action-btn.small {
+  top: 260px;
+  right: 20px;
+  width: 78px;
+  height: 78px;
+  font-size: 10px;
+}
+
+.action-btn.big {
+  bottom: 200px;
+  left: 34px;
+  width: 98px;
+  height: 98px;
+  font-size: 13px;
+  border-radius: 24px;
+}
+
+@media (max-height: 500px) {
+  .joystick { width: 120px; height: 120px; }
+  .joystick-knob { width: 50px; height: 50px; }
+  .cyl-track { width: 56px; height: 160px; }
+  .cyl-ball { width: 46px; height: 46px; }
+  .steer-btn { width: 78px; height: 78px; font-size: 24px; border-radius: 18px; }
+  .action-btn.small { top: 220px; width: 68px; height: 68px; }
+  .action-btn.big { width: 84px; height: 84px; }
+  .side-btn { width: 82px; height: 36px; font-size: 10px; }
+  .chat-fab { width: 50px; height: 50px; bottom: 16px; }
+}

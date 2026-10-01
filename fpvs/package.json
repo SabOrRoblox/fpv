@@ -1,0 +1,12 @@
+{
+  "name": "drone-fpv",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "server": "node server/server.js",
+    "client": "npx serve . -l 5173 --no-clipboard"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

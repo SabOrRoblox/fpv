@@ -1,0 +1,111 @@
+const _isLocal = typeof window !== 'undefined'
+  && (window.location.hostname === 'localhost'
+    || window.location.hostname === '127.0.0.1'
+    || window.location.hostname === ''
+    || /^192\.168\./.test(window.location.hostname)
+    || /^10\./.test(window.location.hostname)
+    || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname));
+
+const _isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
+export const SERVER = {
+  USE_LOCAL: _isLocal,
+  LOCAL_HOST: 'localhost',
+  LOCAL_PORT: 8080,
+  REMOTE_URL: 'wss://server-3b0j.onrender.com',
+
+  getUrl() {
+    if (this.USE_LOCAL) {
+      const scheme = _isSecure ? 'wss' : 'ws';
+      return `${scheme}://${this.LOCAL_HOST}:${this.LOCAL_PORT}`;
+    }
+    return this.REMOTE_URL;
+  },
+};
+
+export const CFG = {
+  WORLD_MAX_PLAYERS: 10,
+  NET_RATE: 20,
+  INTERP_DELAY: 0.08,
+  EXTRAP_MAX: 0.08,
+  PHYS_DT: 1 / 45,
+  GRAVITY: 9.81,
+
+  CAMERA_FOV: 75,
+  CAMERA_TILT_DEG: 15,
+  CAMERA_3RD_DIST: 10.0,
+  CAMERA_3RD_DIST_MIN: 4.0,
+  CAMERA_3RD_DIST_MAX: 20.0,
+  CAMERA_PITCH_MIN: -1.2,
+  CAMERA_PITCH_MAX: 0.6,
+  CAMERA_SENSITIVITY_YAW: 0.014,
+  CAMERA_SENSITIVITY_PITCH: 0.014,
+  CAMERA_SMOOTH: 35.0,
+  CAMERA_FOLLOW_SMOOTH: 18.0,
+
+  FPV_NOSE_FORWARD: 1.10,
+  FPV_NOSE_UP: 0.15,
+  FPV_FORWARD_EXTRA: 0.0,
+  FPV_FORWARD_SIGN: 1,
+  FPV_POS_SMOOTH: 28.0,
+  FPV_FOV_BASE: 75,
+  FPV_FOV_SPEED_GAIN: 0.35,
+  FPV_FOV_SPEED_MAX: 20,
+  FPV_SHAKE_AMP: 0.0003,
+  FPV_SHAKE_MIN: 0.00005,
+  FPV_STICK_RATE_SCALE: 3.5,
+  FPV_STICK_SMOOTH: 22.0,
+
+  DRONE_MODEL_YAW_OFFSET_DEG: 0,
+  MAP_MODEL_SCALE: 1.0,
+  MAP_MODEL_Y_OFFSET: 0,
+  COLLISION_MODEL_SCALE: 1.0,
+  COLLISION_MODEL_Y_OFFSET: 0,
+
+  DRONE_RADIUS: 0.25,
+  DRONE_CRASH_SPEED: 6,
+
+  PLAYER_SPEED: 12.0,
+  PLAYER_RADIUS: 0.5,
+  PLAYER_ACCEL: 30,
+  PLAYER_ANIM_FREQ: 14.0,
+  PLAYER_TURN_SPEED: 16.0,
+  PLAYER_HEAD_HEIGHT: 0.9,
+
+  DRONE_HIT_DAMAGE: 60,
+  DRONE_EXPLOSION_RADIUS: 14.0,
+  DRONE_EXPLOSION_DAMAGE: 100,
+
+  PAD_RADIUS: 2.5,
+
+  TEAM_SPAWN_RED: { x: -642.9, z: 660.6 },
+  TEAM_SPAWN_BLUE: { x: 629.1, z: -660.2 },
+
+  DRONE_PAD_POS: { x: -642.9, z: 660.6 },
+  DRONE_PAD_POS_BLUE: { x: 629.1, z: -660.2 },
+  DRONE_SPAWN_AHEAD: 8.0,
+
+  DEFAULT_DRONE_PARAMS: {
+    DRONE_MASS: 0.7,
+    K_THRUST: 2.0e-8,
+    MAX_RPM: 26000,
+    MOTOR_TAU: 0.035,
+    MOTOR_DECAY: 0.18,
+    DRAG: { x: 0.008, y: 0.10, z: 0.008 },
+    MAX_SPEED_SOFT: 80,
+    MAX_TILT_DEG: 60,
+    MAX_ROLL_DEG: 45,
+    PITCH_GAIN: 10.0,
+    YAW_RATE_DEG: 220,
+    YAW_INERTIA: 0.12,
+    INPUT_SMOOTH: 16.0,
+    STICK_DEADZONE: 0.08,
+    STICK_EXPO: 0.20,
+    TURBULENCE: 0.0,
+
+    BATTERY_CAPACITY: 100,
+    BATTERY_DRAIN_IDLE: 0.15,
+    BATTERY_DRAIN_HOVER: 0.5,
+    BATTERY_DRAIN_FULL: 1.0,
+  },
+};
